@@ -1,15 +1,39 @@
-﻿using System;
+﻿using FileSync.Library.Network;
+using System;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Permissions;
+using System.Threading;
 
 namespace FileSync.Terminal
 {
     class Program
     {
+        static void RunPublisher()
+        {
+            Publisher pub = new Publisher();
+        }
+
+        static void RunSubscriber()
+        {
+            Subscriber sub = new Subscriber();
+            sub.Listen();
+        }
+
         static void Main(string[] args)
         {
-            Run();
+            //Run();
+            ThreadStart subscriberFunction = RunSubscriber;
+            Thread subscriber = new Thread(subscriberFunction);
+            subscriber.Start();
+            Thread.Sleep(1000);
+            Publisher pub = new Publisher();
+            pub.Send("hello, world!");
+            subscriber.Join();
+            Console.WriteLine("Done");
         }
+
 
         //sample code from https://docs.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=netcore-3.1
         private static void Run()
