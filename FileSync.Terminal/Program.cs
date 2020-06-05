@@ -1,5 +1,8 @@
-﻿using FileSync.Library.Network;
+﻿using FileSync.Library.FileSystem;
+using FileSync.Library.Network;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -23,68 +26,42 @@ namespace FileSync.Terminal
 
         static void Main(string[] args)
         {
-            //Run();
-            ThreadStart subscriberFunction = RunSubscriber;
-            Thread subscriber = new Thread(subscriberFunction);
-            subscriber.Start();
-            Thread.Sleep(1000);
-            Publisher pub = new Publisher();
-            pub.Send("hello, world!");
-            subscriber.Join();
-            Console.WriteLine("Done");
+            List<Watcher> watchers = new List<Watcher>();
+            watchers.Add(new Watcher());
+
+            Console.WriteLine("Listening for changes to file system");
+            foreach(Watcher w in watchers)
+            {
+                w.FileChangeDetected += HandleFileChange;
+                w.Start();
+            }
+
+            //loop for as long as at least on watcher is active
+            bool keepGoing = true;
+            while(keepGoing == true)
+            {
+                keepGoing = false;
+                foreach(Watcher w in watchers)
+                {
+                    if(w.RunningThread.IsAlive == true)
+                    {
+                        keepGoing = true;
+                    }
+                }
+            }
+            Console.WriteLine("Ending program");
         }
 
-
-        //sample code from https://docs.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=netcore-3.1
-        private static void Run()
+        private static void HandleFileChange(object sender, FileSystemEventArgs e)
         {
-            string[] args = Environment.GetCommandLineArgs();
-
-            // If a directory is not specified, exit program.
-            if (args.Length != 2)
+            using(BinaryReader reader = new BinaryReader(File.OpenRead(e.FullPath)))
             {
-                // Display the proper way to call the program.
-                Console.WriteLine("Usage: Watcher.exe (directory)");
-                //return;
+                reader.
             }
-
-            // Create a new FileSystemWatcher and set its properties.
-            using (FileSystemWatcher watcher = new FileSystemWatcher())
-            {
-                watcher.Path = ".";//args[1];
-
-                // Watch for changes in LastAccess and LastWrite times, and
-                // the renaming of files or directories.
-                watcher.NotifyFilter = NotifyFilters.LastAccess
-                                     | NotifyFilters.LastWrite
-                                     | NotifyFilters.FileName
-                                     | NotifyFilters.DirectoryName;
-
-                // Only watch text files.
-                //watcher.Filter = "*.txt";
-
-                // Add event handlers.
-                watcher.Changed += OnChanged;
-                watcher.Created += OnChanged;
-                watcher.Deleted += OnChanged;
-                watcher.Renamed += OnRenamed;
-
-                // Begin watching.
-                watcher.EnableRaisingEvents = true;
-
-                // Wait for the user to quit the program.
-                Console.WriteLine("Press 'q' to quit the sample.");
-                while (Console.Read() != 'q') ;
-            }
+            Console.WriteLine("detected {0} at {1}", e.ChangeType.ToString(), e.Name);
         }
-
-        // Define the event handlers.
-        private static void OnChanged(object source, FileSystemEventArgs e) =>
-            // Specify what is done when a file is changed, created, or deleted.
-            Console.WriteLine($"File: {e.FullPath} {e.ChangeType}");
-
-        private static void OnRenamed(object source, RenamedEventArgs e) =>
-            // Specify what is done when a file is renamed.
-            Console.WriteLine($"File: {e.OldFullPath} renamed to {e.FullPath}");
     }
+
+
+        
 }
