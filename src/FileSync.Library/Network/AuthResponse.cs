@@ -4,7 +4,5 @@ using System.Text;
 
 namespace FileSync.Library.Network
 {
-    public class FileSender
-    {
-    }
+    enum AuthResponse { INVAID, VALID };
 }

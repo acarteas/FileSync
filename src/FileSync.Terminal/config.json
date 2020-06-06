@@ -1,0 +1,12 @@
+﻿{
+  "LocalListenPort": 13000,
+  "LocalAccessKey": "+Gm48So6YZZKV5pKIYSo75pZhvTNqlIuV6tcvkisqpo=",
+  "RemoteConnections": {
+    "127.0.0.1": {
+      "Nickname": "Local host",
+      "Address": "127.0.0.1",
+      "Port": 13000,
+      "AccessKey": "+Gm48So6YZZKV5pKIYSo75pZhvTNqlIuV6tcvkisqpo="
+    }
+  }
+}
