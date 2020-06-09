@@ -46,6 +46,7 @@ namespace FileSync.Library.FileSystem
             using (System.IO.FileSystemWatcher watcher = new System.IO.FileSystemWatcher())
             {
                 watcher.Path = PathToWatch;
+                watcher.IncludeSubdirectories = true;
 
                 // Watch for changes in LastAccess and LastWrite times, and
                 // the renaming of files or directories.

@@ -43,6 +43,11 @@ namespace FileSync.Terminal
             config = JsonConvert.DeserializeObject<FileSystemConfig>(configText);
         }
 
+        static void GenerateConfig()
+        {
+
+        }
+
         static void Main(string[] args)
         {
             LoadConfig();
@@ -78,9 +83,13 @@ namespace FileSync.Terminal
 
         private static void HandleFileChange(object sender, FileSystemEventArgs e)
         {
-            using(BinaryReader reader = new BinaryReader(File.OpenRead(e.FullPath)))
-            {
-            }
+            RenamedEventArgs renamedArgs = e as RenamedEventArgs;
+
+            //file or directory
+            bool isDirectory = Directory.Exists(e.FullPath);
+            //using(BinaryReader reader = new BinaryReader(File.OpenRead(e.FullPath)))
+            //{
+            //}
             Console.WriteLine("detected {0} at {1}", e.ChangeType.ToString(), e.Name);
         }
     }

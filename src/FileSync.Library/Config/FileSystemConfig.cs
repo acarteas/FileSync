@@ -10,6 +10,7 @@ namespace FileSync.Library.Config
         public int LocalListenPort { get; set; }
         public string LocalAccessKey { get; set; }
         public Dictionary<string, Connection> RemoteConnections { get; set; }
+        public int ServerThreadPoolCount { get; set; }
         public FileSystemConfig()
         {
             RemoteConnections = new Dictionary<string, Connection>();
