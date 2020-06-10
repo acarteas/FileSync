@@ -11,26 +11,26 @@ namespace FileSync.Library.Config
         public int Port { get; set; }
         public string AccessKey { get; set; }
         public string LocalSyncPath { get; set; }
-        public List<string> RemoteSyncDirectories { get; set; }
+        public List<string> DirectoriesToSync { get; set; }
 
         /// <summary>
         /// Acts as a cache for list of remote directories to sync
         /// </summary>
-        private Dictionary<string, int> _remoteSyncDirectoriesDict = new Dictionary<string, int>();
+        private Dictionary<string, int> _directoriesToSync = new Dictionary<string, int>();
         public Connection()
         {
-            RemoteSyncDirectories = new List<string>();
+            DirectoriesToSync = new List<string>();
         }
 
         public bool IsRemoteSyncDirectory(string directory)
         {
-            if(_remoteSyncDirectoriesDict.ContainsKey(directory) == true)
+            if(_directoriesToSync.ContainsKey(directory) == true)
             {
                 return true;
             }
-            if(RemoteSyncDirectories.Contains(directory) == true)
+            if(DirectoriesToSync.Contains(directory) == true)
             {
-                _remoteSyncDirectoriesDict.Add(directory, 1);
+                _directoriesToSync.Add(directory, 1);
                 return true;
             }
             return false;

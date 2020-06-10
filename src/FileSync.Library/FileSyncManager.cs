@@ -3,6 +3,7 @@ using FileSync.Library.FileSystem;
 using FileSync.Library.Network;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -62,9 +63,14 @@ namespace FileSync.Library
             }
         }
 
-        private void WatchedFileChanged(object sender, System.IO.FileSystemEventArgs e)
+        private void WatchedFileChanged(object sender, FileSystemEventArgs e)
         {
+            FileInfo info = new FileInfo(e.FullPath);
 
+            if (e.ChangeType == WatcherChangeTypes.Renamed)
+            {
+                
+            }
         }
 
         public void Start()

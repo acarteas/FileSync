@@ -9,7 +9,7 @@
       "Port": 13000,
       "AccessKey": "+Gm48So6YZZKV5pKIYSo75pZhvTNqlIuV6tcvkisqpo=",
       "LocalSyncPath": "C:\temp",
-      "RemoteSyncDirectories": ["temp"]
+      "DirectoriesToSync": ["temp"]
     }
   }
 }
