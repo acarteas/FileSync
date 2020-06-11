@@ -11,27 +11,20 @@ namespace FileSync.Library.Network.Operations
     public class SendFileSyncOperation : NetworkOperation
     {
         public FileSyncOperation Operation { get; set; }
-        public SendFileSyncOperation(TcpClient client, ILogger logger, FileSyncOperation operation) : base(client, logger)
+        public SendFileSyncOperation(BinaryReader reader, BinaryWriter writer, ILogger logger, FileSyncOperation operation) : base(reader, writer, logger)
         {
             Operation = operation;
         }
 
         public override bool Run()
         {
-            BinaryWriter writer = null;
             try
             {
-                var bufferedStream = new BufferedStream(Client.GetStream());
-                writer = new BinaryWriter(bufferedStream);
-                writer.Write(IPAddress.HostToNetworkOrder((int)Operation));
+                Writer.Write(IPAddress.HostToNetworkOrder((int)Operation));
             }
             catch (Exception ex)
             {
                 Logger.Log("Exception: {0}", ex.Message);
-            }
-            finally
-            {
-                writer.Close();
             }
             return true;
         }

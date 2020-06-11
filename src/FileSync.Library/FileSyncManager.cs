@@ -1,6 +1,8 @@
 ﻿using FileSync.Library.Config;
 using FileSync.Library.FileSystem;
+using FileSync.Library.Logging;
 using FileSync.Library.Network;
+using FileSync.Library.Network.Operations;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,15 +16,16 @@ namespace FileSync.Library
     public class FileSyncManager
     {
         protected Watcher Watcher { get; set; }
-        public FileSystemConfig Config { get; set; }
+        public FileSyncConfig Config { get; set; }
 
         protected List<Thread> ServerThreads { get; set; }
         protected Thread ClientThread { get; set; }
         protected Connection ActiveConnection { get; set; }
         public bool IsSendingFile { get; private set; }
 
-        public FileSyncManager(FileSystemConfig config, Connection connection)
+        public FileSyncManager(FileSyncConfig config, Connection connection)
         {
+            ServerThreads = new List<Thread>();
             Config = config;
             ActiveConnection = connection;
             Watcher = new Watcher(connection.LocalSyncPath);
@@ -37,16 +40,17 @@ namespace FileSync.Library
             //spawn appropriate number of server threads
             for(int i = 0; i < Config.ServerThreadPoolCount; i++)
             {
-                Server server = new Server(Config, listener);
+                Server server = new Server(Config, listener, new ConsoleLogger());
                 ThreadStart ts = server.Start;
                 ServerThreads.Add(new Thread(ts));
                 ServerThreads[ServerThreads.Count - 1].Start();
             }
         }
 
-        private void SyncFile()
+        private void SyncFile(FileMetaData data)
         {
-            Client client = new Client(Config, ActiveConnection.Address, Config.LocalListenPort);
+            Client client = new Client(ActiveConnection, new ConsoleLogger());
+            client.DataToSend = data;
             client.SendComplete += ClientSendComplete;
             ThreadStart ts = client.SendFile;
             ClientThread = new Thread(ts);
@@ -66,11 +70,27 @@ namespace FileSync.Library
         private void WatchedFileChanged(object sender, FileSystemEventArgs e)
         {
             FileInfo info = new FileInfo(e.FullPath);
+            string formattedRegularPath = Path.GetFullPath(ActiveConnection.LocalSyncPath);
+            string relativePath = info.FullName.Substring(formattedRegularPath.Length);
 
+            FileMetaData metaData = new FileMetaData()
+            {
+                LastWriteTimeUTC = info.LastWriteTimeUtc,
+                OperationType = e.ChangeType,
+                Path = relativePath
+            };
             if (e.ChangeType == WatcherChangeTypes.Renamed)
             {
-                
+                RenamedEventArgs renamed = e as RenamedEventArgs;
+                if(renamed != null)
+                {
+                    string oldRelativePath = renamed.FullPath.Substring(formattedRegularPath.Length);
+                    metaData.OldPath = oldRelativePath;
+                }
             }
+
+            //with metadata built, send to server
+            SyncFile(metaData);
         }
 
         public void Start()

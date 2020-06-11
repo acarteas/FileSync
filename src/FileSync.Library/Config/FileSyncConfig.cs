@@ -5,13 +5,12 @@ using System.Text;
 
 namespace FileSync.Library.Config
 {
-    public class FileSystemConfig
+    public class FileSyncConfig
     {
         public int LocalListenPort { get; set; }
-        public string LocalAccessKey { get; set; }
         public Dictionary<string, Connection> RemoteConnections { get; set; }
         public int ServerThreadPoolCount { get; set; }
-        public FileSystemConfig()
+        public FileSyncConfig()
         {
             RemoteConnections = new Dictionary<string, Connection>();
         }

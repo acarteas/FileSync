@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.30104.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileSync.Library", "FileSync.Library\FileSync.Library.csproj", "{6F762E94-1B1E-48B8-8B94-27B3DD97D709}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileSync.Terminal", "FileSync.Terminal\FileSync.Terminal.csproj", "{A994E5F7-8860-4EEE-A2D2-4B9BADED1CB1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FileSync.Terminal", "FileSync.Terminal\FileSync.Terminal.csproj", "{A994E5F7-8860-4EEE-A2D2-4B9BADED1CB1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileSync.TestSuite", "FileSync.TestSuite\FileSync.TestSuite.csproj", "{521FBE84-CCEF-434C-9A11-8DCB9C9BD2AD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{A994E5F7-8860-4EEE-A2D2-4B9BADED1CB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A994E5F7-8860-4EEE-A2D2-4B9BADED1CB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A994E5F7-8860-4EEE-A2D2-4B9BADED1CB1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{521FBE84-CCEF-434C-9A11-8DCB9C9BD2AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{521FBE84-CCEF-434C-9A11-8DCB9C9BD2AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{521FBE84-CCEF-434C-9A11-8DCB9C9BD2AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{521FBE84-CCEF-434C-9A11-8DCB9C9BD2AD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

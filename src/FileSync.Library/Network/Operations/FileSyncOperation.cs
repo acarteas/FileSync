@@ -9,14 +9,10 @@ namespace FileSync.Library.Network.Operations
         //no-op
         Null = 0,
 
-        //A network call that contains a full file
-        File,
+        //A network request in which the sender would like to send a file
+        SendFile,
 
-        //A network call that has information for a given file
-        FileInfo,
-
-        //A network call in which the caller is requesting all recent changes
-        //logged by the server.  
+        //A network call in which the sender is requesting all recent changes.  
         GetUpdates
     }
 }

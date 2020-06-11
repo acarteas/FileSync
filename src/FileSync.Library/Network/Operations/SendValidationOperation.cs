@@ -14,12 +14,10 @@ namespace FileSync.Library.Network.Operations
     /// </summary>
     public class SendValidationOperation : NetworkOperation
     {
-        public FileSystemConfig Config { get; set; }
-        public IPAddress Address = null;
-        public SendValidationOperation(TcpClient client, ILogger logger, IPAddress address, FileSystemConfig config) : base(client, logger)
+        Connection Connection { get; set; }
+        public SendValidationOperation(BinaryReader reader, BinaryWriter writer, ILogger logger, Connection connection) : base(reader, writer, logger)
         {
-            Address = address;
-            Config = config;
+            Connection = connection;
         }
         
 
@@ -34,51 +32,41 @@ namespace FileSync.Library.Network.Operations
             Receive: BYTE[] (server API key)
             Send: INT-32 (AuthResponse API key verification)
              * */
-            BinaryWriter writer = null;
-            BinaryReader reader = null;
             bool couldValidate = false;
             try
             {
-                var bufferedStream = new BufferedStream(Client.GetStream());
-                writer = new BinaryWriter(bufferedStream);
-                reader = new BinaryReader(bufferedStream);
 
-                //send our local key to server for verification
-                byte[] key = Convert.FromBase64String(Config.LocalAccessKey);
-                writer.Write(IPAddress.HostToNetworkOrder(key.Length));
-                writer.Write(key);
+                //send our server key to server for verification
+                byte[] key = Convert.FromBase64String(Connection.RemoteAccessKey);
+                Writer.Write(IPAddress.HostToNetworkOrder(key.Length));
+                Writer.Write(key);
 
                 //receive response message
-                AuthResponse authResponse = (AuthResponse)IPAddress.NetworkToHostOrder(reader.ReadInt32());
+                AuthResponse authResponse = (AuthResponse)IPAddress.NetworkToHostOrder(Reader.ReadInt32());
                 if (authResponse == AuthResponse.Valid)
                 {
                     //validate server key
-                    int serverKeyLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
-                    byte[] serverKeyBytes = reader.ReadBytes(serverKeyLength);
+                    int serverKeyLength = IPAddress.NetworkToHostOrder(Reader.ReadInt32());
+                    byte[] serverKeyBytes = Reader.ReadBytes(serverKeyLength);
                     string serverKey = Convert.ToBase64String(serverKeyBytes);
 
                     //ensure valid server key before continuing
-                    if (Config.RemoteConnections[Address.ToString()].AccessKey == serverKey)
+                    if (Connection.LocalAccessKey == serverKey)
                     {
                         //inform server that they check out as well
-                        writer.Write((int)AuthResponse.Valid);
+                        Writer.Write(IPAddress.HostToNetworkOrder((int)AuthResponse.Valid));
                         couldValidate = true;
                     }
                     else
                     {
                         //inform server that we couldn't validate their API key
-                        writer.Write((int)AuthResponse.Invalid);
+                        Writer.Write(IPAddress.HostToNetworkOrder((int)AuthResponse.Invalid));
                     }
                 }
             }
             catch (Exception ex)
             {
                 Logger.Log("Error validating server: {0}", ex.Message);
-            }
-            finally
-            {
-                writer.Close();
-                reader.Close();
             }
             return couldValidate;
         }

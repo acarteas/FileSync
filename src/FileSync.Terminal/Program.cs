@@ -18,29 +18,13 @@ namespace FileSync.Terminal
         static Thread serverThread = null;
         static Thread clientThread = null;
         static int listenPort = 13000;
-        static FileSystemConfig config;
-        static void RunServer()
-        {
-            TcpListener listener = new TcpListener(IPAddress.Any, listenPort);
-            listener.Start();
-            Server server = new Server(config, listener);
-            ThreadStart ts = server.Start;
-            serverThread = new Thread(ts);
-            serverThread.Start();
-        }
-
-        static void SendMessage()
-        {
-            Client client = new Client(config, "127.0.0.1", listenPort);
-            ThreadStart ts = client.SendFile;
-            clientThread = new Thread(ts);
-            clientThread.Start();
-        }
+        static FileSyncConfig config;
+        
 
         static void LoadConfig()
         {
             string configText = File.ReadAllText("config.json");
-            config = JsonConvert.DeserializeObject<FileSystemConfig>(configText);
+            config = JsonConvert.DeserializeObject<FileSyncConfig>(configText);
         }
 
         static void GenerateConfig()
@@ -54,7 +38,6 @@ namespace FileSync.Terminal
 
             List<Watcher> watchers = new List<Watcher>();
             watchers.Add(new Watcher());
-            RunServer();
 
             Console.WriteLine("Listening for changes to file system");
             foreach(Watcher w in watchers)
@@ -63,7 +46,6 @@ namespace FileSync.Terminal
                 w.Start();
             }
 
-            SendMessage();
 
             //loop for as long as at least on watcher is active
             bool keepGoing = true;

@@ -12,35 +12,25 @@ namespace FileSync.Library.Network.Operations
     public class SendFileMetadataOperation : NetworkOperation
     {
         public FileMetaData FileData { get; set; }
-        public SendFileMetadataOperation(TcpClient client, FileMetaData data, ILogger logger) : base(client, logger)
+        public SendFileMetadataOperation(BinaryReader reader, BinaryWriter writer, FileMetaData data, ILogger logger) : base(reader, writer, logger)
         {
             FileData = data;
         }
 
         public override bool Run()
         {
-            BinaryWriter writer = null;
-            BinaryReader reader = null;
             string jsonFileOp = JsonConvert.SerializeObject(FileData);
             byte[] jsonBytes = Encoding.UTF8.GetBytes(jsonFileOp);
             bool success = false;
             try
             {
-                var bufferedStream = new BufferedStream(Client.GetStream());
-                writer = new BinaryWriter(bufferedStream);
-                reader = new BinaryReader(bufferedStream);
-                writer.Write(IPAddress.HostToNetworkOrder(jsonBytes.Length));
-                writer.Write(jsonBytes);
+                Writer.Write(IPAddress.HostToNetworkOrder(jsonBytes.Length));
+                Writer.Write(jsonBytes);
                 success = true;
             }
             catch (Exception ex)
             {
                 Logger.Log("Exception: {0}", ex.Message);
-            }
-            finally
-            {
-                writer.Close();
-                reader.Close();
             }
             return success;
         }

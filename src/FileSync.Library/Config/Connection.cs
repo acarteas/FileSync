@@ -9,7 +9,8 @@ namespace FileSync.Library.Config
         public string Nickname { get; set; }
         public string Address { get; set; }
         public int Port { get; set; }
-        public string AccessKey { get; set; }
+        public string LocalAccessKey { get; set; }
+        public string RemoteAccessKey { get; set; }
         public string LocalSyncPath { get; set; }
         public List<string> DirectoriesToSync { get; set; }
 

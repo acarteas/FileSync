@@ -11,26 +11,21 @@ namespace FileSync.Library.Network.Operations
     {
         public string FilePath { get; set; }
         public static readonly int BUFFER_SIZE = 1024;
-        public SendFileOperation(TcpClient client, ILogger logger, string filePath) : base(client, logger)
+        public SendFileOperation(BinaryReader reader, BinaryWriter writer, ILogger logger, string filePath) : base(reader, writer, logger)
         {
             FilePath = filePath;
         }
 
         public override bool Run()
         {
-            BinaryWriter writer = null;
-            BinaryReader reader = null;
             BinaryReader fileReader = null;
             try
             {
-                var bufferedStream = new BufferedStream(Client.GetStream());
-                writer = new BinaryWriter(bufferedStream);
-                reader = new BinaryReader(bufferedStream);
                 fileReader = new BinaryReader(File.OpenRead(FilePath));
                 byte[] buffer;
                 while((buffer = fileReader.ReadBytes(BUFFER_SIZE)).Length > 0)
                 {
-                    writer.Write(buffer);
+                    Writer.Write(buffer);
                 }
             }
             catch (Exception ex)
@@ -41,8 +36,6 @@ namespace FileSync.Library.Network.Operations
             finally
             {
                 fileReader.Close();
-                writer.Close();
-                reader.Close();
             }
             return true;
         }
