@@ -26,7 +26,10 @@ namespace FileSync.Library.Network.Operations
             {
                 Writer.Write(IPAddress.HostToNetworkOrder(jsonBytes.Length));
                 Writer.Write(jsonBytes);
-                success = true;
+
+                //positive result indicates server would like file
+                int result = IPAddress.NetworkToHostOrder(Reader.ReadInt32());
+                success = result > 0;
             }
             catch (Exception ex)
             {

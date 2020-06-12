@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -21,12 +22,15 @@ namespace FileSync.Library.Network.Operations
             BinaryReader fileReader = null;
             try
             {
+                FileInfo toSend = new FileInfo(FilePath);
                 fileReader = new BinaryReader(File.OpenRead(FilePath));
                 byte[] buffer;
+                Writer.Write(IPAddress.HostToNetworkOrder(toSend.Length));
                 while((buffer = fileReader.ReadBytes(BUFFER_SIZE)).Length > 0)
                 {
                     Writer.Write(buffer);
                 }
+                Writer.Flush();
             }
             catch (Exception ex)
             {

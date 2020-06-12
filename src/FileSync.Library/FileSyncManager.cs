@@ -22,6 +22,7 @@ namespace FileSync.Library
         protected Thread ClientThread { get; set; }
         protected Connection ActiveConnection { get; set; }
         public bool IsSendingFile { get; private set; }
+        private Dictionary<string, int> _activeFiles = new Dictionary<string, int>();
 
         public FileSyncManager(FileSyncConfig config, Connection connection)
         {
@@ -49,18 +50,30 @@ namespace FileSync.Library
 
         private void SyncFile(FileMetaData data)
         {
-            Client client = new Client(ActiveConnection, new ConsoleLogger());
-            client.DataToSend = data;
-            client.SendComplete += ClientSendComplete;
-            ThreadStart ts = client.SendFile;
-            ClientThread = new Thread(ts);
-            ClientThread.Start();
-            IsSendingFile = true;
+            //prevent multiple sends
+            if(_activeFiles.ContainsKey(data.Path) == false)
+            {
+                _activeFiles[data.Path] = 1;
+
+                Client client = new Client(ActiveConnection, new ConsoleLogger());
+                client.DataToSend = data;
+                client.SendComplete += ClientSendComplete;
+                ThreadStart ts = client.SendFile;
+                ClientThread = new Thread(ts);
+                ClientThread.Start();
+                IsSendingFile = true;
+            }
+
+            
         }
 
         private void ClientSendComplete(object sender, ClientEventArgs e)
         {
             IsSendingFile = false;
+
+            //unlock file
+            _activeFiles.Remove(e.FileName);
+
             if(e.WasSuccessful == false)
             {
                 //TODO: failure to send file to server
@@ -84,7 +97,7 @@ namespace FileSync.Library
                 RenamedEventArgs renamed = e as RenamedEventArgs;
                 if(renamed != null)
                 {
-                    string oldRelativePath = renamed.FullPath.Substring(formattedRegularPath.Length);
+                    string oldRelativePath = renamed.OldFullPath.Substring(formattedRegularPath.Length);
                     metaData.OldPath = oldRelativePath;
                 }
             }

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -21,12 +22,18 @@ namespace FileSync.Library.Network.Operations
             BinaryWriter fileWriter = null;
             try
             {
-                fileWriter = new BinaryWriter(new BufferedStream(File.OpenWrite(DestinationFilePath)));
-                byte[] buffer;
-                while ((buffer = Reader.ReadBytes(BUFFER_SIZE)).Length > 0)
+                fileWriter = new BinaryWriter(new BufferedStream(File.Open(DestinationFilePath, FileMode.Create)));
+                long remainingBytes = IPAddress.NetworkToHostOrder(Reader.ReadInt64());
+
+                do
                 {
+                    //next read will be the smaller of the max buffer size or remaining bytes
+                    int bytesToRequest = (BUFFER_SIZE > remainingBytes) ? (int)remainingBytes : BUFFER_SIZE;
+                    byte[] buffer = Reader.ReadBytes(bytesToRequest);
                     fileWriter.Write(buffer);
-                }
+                    remainingBytes -= bytesToRequest;
+                } while (remainingBytes > 0);
+                
             }
             catch (Exception ex)
             {

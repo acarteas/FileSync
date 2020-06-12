@@ -33,6 +33,7 @@ namespace FileSync.Library.Network
         public void SendFile()
         {
             ClientEventArgs args = new ClientEventArgs();
+            args.FileName = DataToSend.Path;
 
             TcpClient client = new TcpClient(_connection.Address, _connection.Port);
             BufferedStream stream = new BufferedStream(client.GetStream());
@@ -44,6 +45,10 @@ namespace FileSync.Library.Network
                 var auth = new SendValidationOperation(reader, writer, _logger, _connection);
                 if (auth.Run() == true)
                 {
+                    //tell server we would like to inform them of a file update
+                    var syncOperation = new SendFileSyncOperation(reader, writer, _logger, FileSyncOperation.SendFile);
+                    syncOperation.Run();
+
                     //send over file metadata
                     var metadata = new SendFileMetadataOperation(reader, writer, DataToSend, _logger);
                     metadata.Run();
@@ -52,12 +57,16 @@ namespace FileSync.Library.Network
                     if (client.Connected == true)
                     {
                         string basePath = _connection.LocalSyncPath;
-                        string localFilePath = Path.Combine(basePath, DataToSend.Path);
+                        string localFilePath = Path.Join(basePath, DataToSend.Path);
                         if (File.Exists(localFilePath))
                         {
                             var fileOperation = new SendFileOperation(reader, writer, _logger, localFilePath);
                             fileOperation.Run();
+
+                            //block until server is done saving file
+                            int result = reader.ReadInt32();
                         }
+
                     }
                 }
             }

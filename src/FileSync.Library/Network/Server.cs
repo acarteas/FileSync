@@ -27,6 +27,7 @@ namespace FileSync.Library.Network
         private int _thread_id;
         public ILogger Logger { get; set; }
         protected FileSyncConfig _config;
+        private static Dictionary<string, int> _activeFiles = new Dictionary<string, int>();
 
         public TcpListener Listener { get; protected set; }
         public Server(FileSyncConfig config, TcpListener listener, ILogger logger)
@@ -74,27 +75,66 @@ namespace FileSync.Library.Network
                                 metaDataOperation.Run();
 
                                 //find location of file on our file system
-                                string filePath = Path.Combine(activeConnection.LocalSyncPath, metaDataOperation.FileData.Path);
+                                string filePath = Path.Join(activeConnection.LocalSyncPath, metaDataOperation.FileData.Path);
 
-                                //handle rename operations separately
-                                if (metaDataOperation.FileData.OperationType != WatcherChangeTypes.Renamed)
+                                //prevents same file from being received multiple times
+                                bool isActiveFile = false;
+                                lock (_activeFiles)
                                 {
-                                    FileInfo localFile = new FileInfo(filePath);
-
-                                    //if our copy is older than theirs, take it
-                                    if (localFile.Exists == false || localFile.LastWriteTimeUtc < metaDataOperation.FileData.LastWriteTimeUTC)
+                                    isActiveFile = _activeFiles.ContainsKey(filePath);
+                                    if (isActiveFile == false)
                                     {
-                                        var grabFileOperation = new ReceiveFileOperation(reader,writer, Logger, filePath);
-                                        grabFileOperation.Run();
+                                        _activeFiles.Add(filePath, 1);
                                     }
                                 }
-                                else
+                                if(isActiveFile == false)
                                 {
-                                    //no need to send file over network if all we're doing is a rename
-                                    string oldFilePath = Path.Combine(activeConnection.LocalSyncPath, metaDataOperation.FileData.OldPath);
-                                    if (File.Exists(oldFilePath))
+                                    //handle delete and rename operations separately
+                                    if (metaDataOperation.FileData.OperationType != WatcherChangeTypes.Renamed)
                                     {
-                                        File.Move(oldFilePath, filePath);
+                                        FileInfo localFile = new FileInfo(filePath);
+
+                                        //if our copy is older than theirs, take it
+                                        if (localFile.Exists == false || localFile.LastWriteTimeUtc < metaDataOperation.FileData.LastWriteTimeUTC)
+                                        {
+                                            //sending 1 informs client we would like the file
+                                            writer.Write(1);
+
+                                            var grabFileOperation = new ReceiveFileOperation(reader, writer, Logger, filePath);
+                                            grabFileOperation.Run();
+
+                                            //change last write to match client file
+                                            File.SetLastWriteTimeUtc(filePath, metaDataOperation.FileData.LastWriteTimeUTC);
+
+                                            //prevent client from closing connection until we adjust modified date
+                                            writer.Write(1);
+                                        }
+                                    }
+                                    else if (metaDataOperation.FileData.OperationType == WatcherChangeTypes.Renamed)
+                                    {
+                                        //no need to send file over network if all we're doing is a rename or delete
+                                        writer.Write(0);
+                                        string oldFilePath = Path.Join(activeConnection.LocalSyncPath, metaDataOperation.FileData.OldPath);
+                                        if (File.Exists(oldFilePath))
+                                        {
+                                            File.Move(oldFilePath, filePath);
+                                        }
+                                    }
+                                    else if(metaDataOperation.FileData.OperationType == WatcherChangeTypes.Deleted)
+                                    {
+                                        if(File.Exists(filePath))
+                                        {
+                                            File.Delete(filePath);
+                                        }  
+                                    } 
+                                }
+
+                                //unlock active file
+                                lock(_activeFiles)
+                                {
+                                    if(_activeFiles.ContainsKey(filePath))
+                                    {
+                                        _activeFiles.Remove(filePath);
                                     }
                                 }
 

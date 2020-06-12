@@ -15,6 +15,8 @@ namespace FileSync.Library.Network.Operations
         public NetworkOperation(BinaryReader reader, BinaryWriter writer, ILogger logger)
         {
             Logger = logger;
+            Reader = reader;
+            Writer = writer;
         }
         public abstract bool Run();
     }
