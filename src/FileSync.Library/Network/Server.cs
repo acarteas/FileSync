@@ -1,12 +1,16 @@
 ﻿using FileSync.Library.Config;
 using FileSync.Library.Logging;
+using FileSync.Library.Network.Messages;
 using FileSync.Library.Network.Operations;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 
 //expected stream format: 
@@ -23,6 +27,7 @@ namespace FileSync.Library.Network
     //TODO: add option for SSL communication (tutorial at https://docs.microsoft.com/en-us/dotnet/api/system.net.security.sslstream?view=netcore-3.1)
     public class Server
     {
+        public static readonly int BUFFER_SIZE = 1024;
         private static int _thread_counter = 1;
         private int _thread_id;
         public ILogger Logger { get; set; }
@@ -39,6 +44,70 @@ namespace FileSync.Library.Network
             Logger = logger;
         }
 
+        private void HandleFileUpdate(Connection activeConnection, FileMetaData metaData, BinaryReader networkReader)
+        {
+            //find location of file on our file system
+            string filePath = Path.Join(activeConnection.LocalSyncPath, metaData.Path);
+
+            //prevents same file from being received multiple times
+            bool isActiveFile = false;
+            lock (_activeFiles)
+            {
+                isActiveFile = _activeFiles.ContainsKey(filePath);
+                if (isActiveFile == false)
+                {
+                    _activeFiles.Add(filePath, 1);
+                }
+            }
+            if (isActiveFile == false)
+            {
+                //handle delete and rename operations separately
+                if (metaData.OperationType != WatcherChangeTypes.Renamed)
+                {
+                    FileInfo localFile = new FileInfo(filePath);
+
+                    //if our copy is older than theirs, take it
+                    if (localFile.Exists == false || localFile.LastWriteTimeUtc < metaData.LastWriteTimeUtc)
+                    {
+                        using (var fileWriter = new BinaryWriter(new BufferedStream(File.Open(filePath, FileMode.Create))))
+                        {
+                            long remainingBytes = IPAddress.NetworkToHostOrder(networkReader.ReadInt64());
+                            do
+                            {
+                                //next read will be the smaller of the max buffer size or remaining bytes
+                                int bytesToRequest = (BUFFER_SIZE > remainingBytes) ? (int)remainingBytes : BUFFER_SIZE;
+                                byte[] buffer = networkReader.ReadBytes(bytesToRequest);
+                                fileWriter.Write(buffer);
+                                remainingBytes -= bytesToRequest;
+                            } while (remainingBytes > 0);
+                        }
+
+                        //change last write to match client file
+                        File.SetLastWriteTimeUtc(filePath, metaData.LastWriteTimeUtc);
+                        File.SetLastAccessTimeUtc(filePath, metaData.LastAccessTimeUtc);
+                        File.SetCreationTimeUtc(filePath, metaData.CreateTimeUtc);
+
+                    }
+                }
+                else if (metaData.OperationType == WatcherChangeTypes.Renamed)
+                {
+                    //no need to send file over network if all we're doing is a rename or delete
+                    string oldFilePath = Path.Join(activeConnection.LocalSyncPath, metaData.OldPath);
+                    if (File.Exists(oldFilePath))
+                    {
+                        File.Move(oldFilePath, filePath);
+                    }
+                }
+                else if (metaData.OperationType == WatcherChangeTypes.Deleted)
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+            }
+        }
+
         public void Start()
         {
             Logger.Log("Server Thread #{0} waiting for connection...", _thread_id);
@@ -47,7 +116,7 @@ namespace FileSync.Library.Network
 
             //reject connections not stored in our config
             string address = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
-            if(_config.RemoteConnections.ContainsKey(address) == true)
+            if (_config.RemoteConnections.ContainsKey(address) == true)
             {
                 Connection activeConnection = _config.RemoteConnections[address];
                 BufferedStream stream = new BufferedStream(client.GetStream());
@@ -56,98 +125,31 @@ namespace FileSync.Library.Network
                 try
                 {
                     //verify client
-                    var validator = new ReceiveValidationOperation(reader, writer, Logger, activeConnection);
-                    bool isValidated = validator.Run();
-                    if (isValidated == true)
+                    int verificationLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+                    var clientIntroduction = new IntroMessage(reader.ReadBytes(verificationLength));
+                    var verificationRespone = new IntroMessage()
                     {
-                        //determine client intent
-                        var opReader = new ReceiveFileSyncOperation(reader, writer, Logger);
-                        opReader.Run();
-                        FileSyncOperation op = opReader.Operation;
+                        Response = NetworkResponse.Invalid
+                    };
 
-                        //build appropraite response based on intent
-                        switch (op)
+                    if (clientIntroduction.Key == activeConnection.LocalAccessKey)
+                    {
+                        verificationRespone.Response = NetworkResponse.Valid;
+                        verificationRespone.Key = activeConnection.LocalAccessKey;
+                    }
+                    byte[] responseBytes = verificationRespone.ToBytes();
+                    writer.Write(IPAddress.HostToNetworkOrder(responseBytes.Length));
+                    writer.Write(responseBytes);
+
+                    //determine intent assuming valid key
+                    if (verificationRespone.Response == NetworkResponse.Valid)
+                    {
+                        switch (clientIntroduction.RequestedOperation)
                         {
                             case FileSyncOperation.SendFile:
-
-                                //grab metadata
-                                var metaDataOperation = new ReceiveFileMetadataOperation(reader, writer, Logger);
-                                metaDataOperation.Run();
-
-                                //find location of file on our file system
-                                string filePath = Path.Join(activeConnection.LocalSyncPath, metaDataOperation.FileData.Path);
-
-                                //prevents same file from being received multiple times
-                                bool isActiveFile = false;
-                                lock (_activeFiles)
-                                {
-                                    isActiveFile = _activeFiles.ContainsKey(filePath);
-                                    if (isActiveFile == false)
-                                    {
-                                        _activeFiles.Add(filePath, 1);
-                                    }
-                                }
-                                if(isActiveFile == false)
-                                {
-                                    //handle delete and rename operations separately
-                                    if (metaDataOperation.FileData.OperationType != WatcherChangeTypes.Renamed)
-                                    {
-                                        FileInfo localFile = new FileInfo(filePath);
-
-                                        //if our copy is older than theirs, take it
-                                        if (localFile.Exists == false || localFile.LastWriteTimeUtc < metaDataOperation.FileData.LastWriteTimeUTC)
-                                        {
-                                            //sending 1 informs client we would like the file
-                                            writer.Write(1);
-
-                                            var grabFileOperation = new ReceiveFileOperation(reader, writer, Logger, filePath);
-                                            grabFileOperation.Run();
-
-                                            //change last write to match client file
-                                            File.SetLastWriteTimeUtc(filePath, metaDataOperation.FileData.LastWriteTimeUTC);
-
-                                            //prevent client from closing connection until we adjust modified date
-                                            writer.Write(1);
-                                        }
-                                    }
-                                    else if (metaDataOperation.FileData.OperationType == WatcherChangeTypes.Renamed)
-                                    {
-                                        //no need to send file over network if all we're doing is a rename or delete
-                                        writer.Write(0);
-                                        string oldFilePath = Path.Join(activeConnection.LocalSyncPath, metaDataOperation.FileData.OldPath);
-                                        if (File.Exists(oldFilePath))
-                                        {
-                                            File.Move(oldFilePath, filePath);
-                                        }
-                                    }
-                                    else if(metaDataOperation.FileData.OperationType == WatcherChangeTypes.Deleted)
-                                    {
-                                        if(File.Exists(filePath))
-                                        {
-                                            File.Delete(filePath);
-                                        }  
-                                    } 
-                                }
-
-                                //unlock active file
-                                lock(_activeFiles)
-                                {
-                                    if(_activeFiles.ContainsKey(filePath))
-                                    {
-                                        _activeFiles.Remove(filePath);
-                                    }
-                                }
-
-                                break;
-
-                            case FileSyncOperation.GetUpdates:
-                                break;
-
-                            case FileSyncOperation.Null:
-                            default:
+                                HandleFileUpdate(activeConnection, clientIntroduction.MetaData, reader);
                                 break;
                         }
-
                     }
                 }
                 catch (Exception ex)
@@ -161,7 +163,7 @@ namespace FileSync.Library.Network
                 }
             }
 
-            if(client.Connected == true)
+            if (client.Connected == true)
             {
                 client.Close();
             }

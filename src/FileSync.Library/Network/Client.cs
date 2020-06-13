@@ -1,5 +1,6 @@
 ﻿using FileSync.Library.Config;
 using FileSync.Library.Logging;
+using FileSync.Library.Network.Messages;
 using FileSync.Library.Network.Operations;
 using Newtonsoft.Json;
 using System;
@@ -17,6 +18,7 @@ namespace FileSync.Library.Network
     //TODO: add option for SSL communication (tutorial at https://docs.microsoft.com/en-us/dotnet/api/system.net.security.sslstream?view=netcore-3.1)
     public class Client
     {
+        public static readonly int BUFFER_SIZE = 1024;
         private Connection _connection;
         private ILogger _logger;
         public FileMetaData DataToSend { get; set; }
@@ -41,32 +43,40 @@ namespace FileSync.Library.Network
             BinaryWriter writer = new BinaryWriter(stream);
             try
             {
-                //send over auth token
-                var auth = new SendValidationOperation(reader, writer, _logger, _connection);
-                if (auth.Run() == true)
+                //introduce ourselves
+                IMessage toServer = new IntroMessage(_connection.RemoteAccessKey, FileSyncOperation.SendFile, DataToSend);
+                byte[] introBytes = toServer.ToBytes();
+                writer.Write(IPAddress.HostToNetworkOrder(introBytes.Length));
+                writer.Write(introBytes);
+
+                //get server response
+                int serverResponseBytes = reader.ReadInt32();
+                var serverIntroResponse = new IntroMessage(reader.ReadBytes(serverResponseBytes));
+
+                //verify that server accepted our key and that their response key matches our local key
+                if (serverIntroResponse.Response == NetworkResponse.Valid && _connection.LocalAccessKey == serverIntroResponse.Key)
                 {
-                    //tell server we would like to inform them of a file update
-                    var syncOperation = new SendFileSyncOperation(reader, writer, _logger, FileSyncOperation.SendFile);
-                    syncOperation.Run();
-
-                    //send over file metadata
-                    var metadata = new SendFileMetadataOperation(reader, writer, DataToSend, _logger);
-                    metadata.Run();
-
-                    //server will close connection if it decides that it doesn't want the file
+                    //On certain operations (e.g. rename, delete), there is no need to send the whole file to the server.
+                    //In such an event, the server will terminate our connection.  An open connection state is an indication
+                    //that the server would like us to continue to send our information. 
                     if (client.Connected == true)
                     {
                         string basePath = _connection.LocalSyncPath;
                         string localFilePath = Path.Join(basePath, DataToSend.Path);
                         if (File.Exists(localFilePath))
                         {
-                            var fileOperation = new SendFileOperation(reader, writer, _logger, localFilePath);
-                            fileOperation.Run();
-
-                            //block until server is done saving file
-                            int result = reader.ReadInt32();
+                            FileInfo toSend = new FileInfo(localFilePath);
+                            using (var fileReader = new BinaryReader(File.OpenRead(localFilePath)))
+                            {
+                                byte[] buffer;
+                                writer.Write(IPAddress.HostToNetworkOrder(toSend.Length));
+                                while ((buffer = fileReader.ReadBytes(BUFFER_SIZE)).Length > 0)
+                                {
+                                    writer.Write(buffer);
+                                }
+                                writer.Flush();
+                            }
                         }
-
                     }
                 }
             }

@@ -85,10 +85,12 @@ namespace FileSync.Library
             FileInfo info = new FileInfo(e.FullPath);
             string formattedRegularPath = Path.GetFullPath(ActiveConnection.LocalSyncPath);
             string relativePath = info.FullName.Substring(formattedRegularPath.Length);
-
+            
             FileMetaData metaData = new FileMetaData()
             {
-                LastWriteTimeUTC = info.LastWriteTimeUtc,
+                LastWriteTimeUtc = info.LastWriteTimeUtc,
+                LastAccessTimeUtc = info.LastAccessTimeUtc,
+                CreateTimeUtc = info.CreationTimeUtc,
                 OperationType = e.ChangeType,
                 Path = relativePath
             };

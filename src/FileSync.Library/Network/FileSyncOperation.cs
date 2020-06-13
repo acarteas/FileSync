@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace FileSync.Library.Network.Operations
+namespace FileSync.Library.Network
 {
     public enum FileSyncOperation
     {
@@ -13,6 +13,6 @@ namespace FileSync.Library.Network.Operations
         SendFile,
 
         //A network call in which the sender is requesting all recent changes.  
-        GetUpdates
+        GetUpdates = 100
     }
 }
