@@ -1,7 +1,6 @@
 ﻿using FileSync.Library.Config;
 using FileSync.Library.Logging;
 using FileSync.Library.Network.Messages;
-using FileSync.Library.Network.Operations;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -57,9 +56,8 @@ namespace FileSync.Library.Network
                 if (serverIntroResponse.Response == NetworkResponse.Valid && _connection.LocalAccessKey == serverIntroResponse.Key)
                 {
                     //On certain operations (e.g. rename, delete), there is no need to send the whole file to the server.
-                    //In such an event, the server will terminate our connection.  An open connection state is an indication
-                    //that the server would like us to continue to send our information. 
-                    if (client.Connected == true)
+                    //In such an event, the server will respond with a Null FileSyncOperation.  
+                    if (client.Connected == true && serverIntroResponse.RequestedOperation == FileSyncOperation.SendFile)
                     {
                         string basePath = _connection.LocalSyncPath;
                         string localFilePath = Path.Join(basePath, DataToSend.Path);

@@ -1,7 +1,6 @@
 ﻿using FileSync.Library.Config;
 using FileSync.Library.Logging;
 using FileSync.Library.Network.Messages;
-using FileSync.Library.Network.Operations;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -132,21 +131,33 @@ namespace FileSync.Library.Network
                         Response = NetworkResponse.Invalid
                     };
 
+                    //proceed if key matches
                     if (clientIntroduction.Key == activeConnection.LocalAccessKey)
                     {
+                        //Client blocks until it receives a matching IntroMessage from server.  
+                        //We don't send one until we determine that additional information is required from client (see 
+                        //switch statements below)
                         verificationRespone.Response = NetworkResponse.Valid;
                         verificationRespone.Key = activeConnection.LocalAccessKey;
-                    }
-                    byte[] responseBytes = verificationRespone.ToBytes();
-                    writer.Write(IPAddress.HostToNetworkOrder(responseBytes.Length));
-                    writer.Write(responseBytes);
+                        verificationRespone.RequestedOperation = FileSyncOperation.SendFile;
 
-                    //determine intent assuming valid key
-                    if (verificationRespone.Response == NetworkResponse.Valid)
-                    {
                         switch (clientIntroduction.RequestedOperation)
                         {
                             case FileSyncOperation.SendFile:
+                                switch (clientIntroduction.MetaData.OperationType)
+                                {
+                                    //deleted and renamed ops don't require further information from client.  As such,
+                                    //we can release client block and close connection.
+                                    case WatcherChangeTypes.Deleted:
+                                    case WatcherChangeTypes.Renamed:
+                                        verificationRespone.RequestedOperation = FileSyncOperation.Null;
+                                        break;
+                                }
+
+                                //send our introductory response
+                                byte[] introResponse = verificationRespone.ToBytes();
+                                writer.Write(IPAddress.HostToNetworkOrder(introResponse.Length));
+                                writer.Write(introResponse);
                                 HandleFileUpdate(activeConnection, clientIntroduction.MetaData, reader);
                                 break;
                         }

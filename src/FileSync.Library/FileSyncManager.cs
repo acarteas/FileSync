@@ -2,7 +2,6 @@
 using FileSync.Library.FileSystem;
 using FileSync.Library.Logging;
 using FileSync.Library.Network;
-using FileSync.Library.Network.Operations;
 using System;
 using System.Collections.Generic;
 using System.IO;
