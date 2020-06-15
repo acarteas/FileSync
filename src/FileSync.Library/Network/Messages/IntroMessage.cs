@@ -15,7 +15,7 @@ namespace FileSync.Library.Network.Messages
 
         public IntroMessage()
         {
-
+            MetaData = new FileMetaData();
         }
 
         public IntroMessage(string key, FileSyncOperation op, FileMetaData md, NetworkResponse response = NetworkResponse.Null)
@@ -33,19 +33,29 @@ namespace FileSync.Library.Network.Messages
 
         public void FromBytes(byte[] bytes)
         {
-            FileSyncOperation op = FileSyncOperation.Null;
             int keyLength = 0;
             int metaDataLength = 0;
             using(MemoryStream ms = new MemoryStream(bytes))
             {
                 using(BinaryReader reader = new BinaryReader(ms))
                 {
-                    op = (FileSyncOperation)IPAddress.NetworkToHostOrder(reader.ReadInt32());
+                    RequestedOperation = (FileSyncOperation)IPAddress.NetworkToHostOrder(reader.ReadInt32());
                     Response = (NetworkResponse)IPAddress.NetworkToHostOrder(reader.ReadInt32());
                     keyLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
                     metaDataLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
-                    Key = Encoding.UTF8.GetString(reader.ReadBytes(keyLength));
-                    MetaData = FileMetaData.FromBytes(reader.ReadBytes(metaDataLength));
+                    if (keyLength > 0)
+                    {
+                        Key = Encoding.UTF8.GetString(reader.ReadBytes(keyLength));
+                    }
+                    if(metaDataLength > 0)
+                    {
+                        MetaData = FileMetaData.FromBytes(reader.ReadBytes(metaDataLength));
+                    }
+                    else
+                    {
+                        MetaData = new FileMetaData();
+                    }
+                    
                 }
             }
         }

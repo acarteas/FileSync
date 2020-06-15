@@ -49,8 +49,12 @@ namespace FileSync.Library.Network
                 writer.Write(introBytes);
 
                 //get server response
-                int serverResponseBytes = reader.ReadInt32();
-                var serverIntroResponse = new IntroMessage(reader.ReadBytes(serverResponseBytes));
+                int serverResponseBytes = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+                IntroMessage serverIntroResponse = new IntroMessage();
+                if(serverResponseBytes > 0)
+                {
+                    serverIntroResponse = new IntroMessage(reader.ReadBytes(serverResponseBytes));
+                }
 
                 //verify that server accepted our key and that their response key matches our local key
                 if (serverIntroResponse.Response == NetworkResponse.Valid && _connection.LocalAccessKey == serverIntroResponse.Key)
@@ -85,11 +89,13 @@ namespace FileSync.Library.Network
             finally
             {
                 client.Close();
+
+                //notify owner that we are all done
+                SendComplete(this, args);
             }
             
 
-            //notify owner that we are all done
-            SendComplete(this, args);
+            
         }
     }
 }

@@ -10,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
+using System.Security;
 using System.Text;
 
 //expected stream format: 
@@ -33,6 +34,9 @@ namespace FileSync.Library.Network
         protected FileSyncConfig _config;
         private static Dictionary<string, int> _activeFiles = new Dictionary<string, int>();
 
+        public event EventHandler<ServerEventArgs> ReceiveBegin = delegate { };
+        public event EventHandler<ServerEventArgs> ReceiveEnd = delegate { };
+
         public TcpListener Listener { get; protected set; }
         public Server(FileSyncConfig config, TcpListener listener, ILogger logger)
         {
@@ -47,18 +51,8 @@ namespace FileSync.Library.Network
         {
             //find location of file on our file system
             string filePath = Path.Join(activeConnection.LocalSyncPath, metaData.Path);
-
-            //prevents same file from being received multiple times
-            bool isActiveFile = false;
-            lock (_activeFiles)
-            {
-                isActiveFile = _activeFiles.ContainsKey(filePath);
-                if (isActiveFile == false)
-                {
-                    _activeFiles.Add(filePath, 1);
-                }
-            }
-            if (isActiveFile == false)
+            ReceiveBegin(this, new ServerEventArgs() { FileData = metaData });
+            try
             {
                 //handle delete and rename operations separately
                 if (metaData.OperationType != WatcherChangeTypes.Renamed)
@@ -68,6 +62,8 @@ namespace FileSync.Library.Network
                     //if our copy is older than theirs, take it
                     if (localFile.Exists == false || localFile.LastWriteTimeUtc < metaData.LastWriteTimeUtc)
                     {
+                        Logger.Log("Receiving file \"{0}\" from client.", metaData.Path);
+
                         using (var fileWriter = new BinaryWriter(new BufferedStream(File.Open(filePath, FileMode.Create))))
                         {
                             long remainingBytes = IPAddress.NetworkToHostOrder(networkReader.ReadInt64());
@@ -105,78 +101,122 @@ namespace FileSync.Library.Network
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                Logger.Log("Thread #{0} encountered issues with {1}: {2}", _thread_id, metaData.Path, ex.Message);
+            }
+            finally
+            {
+                ReceiveEnd(this, new ServerEventArgs() { FileData = metaData });
+            }
+
+
         }
 
         public void Start()
         {
-            Logger.Log("Server Thread #{0} waiting for connection...", _thread_id);
-            var client = Listener.AcceptTcpClient();
-            Logger.Log("Thread #{0} accepting client: {1}", _thread_id, client.Client.RemoteEndPoint);
-
-            //reject connections not stored in our config
-            string address = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
-            if (_config.RemoteConnections.ContainsKey(address) == true)
+            while (true)
             {
-                Connection activeConnection = _config.RemoteConnections[address];
-                BufferedStream stream = new BufferedStream(client.GetStream());
-                BinaryReader reader = new BinaryReader(stream);
-                BinaryWriter writer = new BinaryWriter(stream);
-                try
+                Logger.Log("Server Thread #{0} waiting for connection...", _thread_id);
+                var client = Listener.AcceptTcpClient();
+                Logger.Log("Thread #{0} accepting client: {1}", _thread_id, client.Client.RemoteEndPoint);
+
+                //reject connections not stored in our config
+                string address = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
+                if (_config.RemoteConnections.ContainsKey(address) == true)
                 {
-                    //verify client
-                    int verificationLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
-                    var clientIntroduction = new IntroMessage(reader.ReadBytes(verificationLength));
-                    var verificationRespone = new IntroMessage()
+                    Connection activeConnection = _config.RemoteConnections[address];
+                    IntroMessage clientIntroduction = null;
+                    BufferedStream stream = new BufferedStream(client.GetStream());
+                    BinaryReader reader = new BinaryReader(stream);
+                    BinaryWriter writer = new BinaryWriter(stream);
+                    try
                     {
-                        Response = NetworkResponse.Invalid
-                    };
-
-                    //proceed if key matches
-                    if (clientIntroduction.Key == activeConnection.LocalAccessKey)
-                    {
-                        //Client blocks until it receives a matching IntroMessage from server.  
-                        //We don't send one until we determine that additional information is required from client (see 
-                        //switch statements below)
-                        verificationRespone.Response = NetworkResponse.Valid;
-                        verificationRespone.Key = activeConnection.LocalAccessKey;
-                        verificationRespone.RequestedOperation = FileSyncOperation.SendFile;
-
-                        switch (clientIntroduction.RequestedOperation)
+                        //verify client
+                        int verificationLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+                        clientIntroduction = new IntroMessage(reader.ReadBytes(verificationLength));
+                        var verificationRespone = new IntroMessage()
                         {
-                            case FileSyncOperation.SendFile:
-                                switch (clientIntroduction.MetaData.OperationType)
+                            Response = NetworkResponse.Invalid
+                        };
+
+                        //proceed if key matches
+                        if (clientIntroduction.Key == activeConnection.LocalAccessKey)
+                        {
+                            //Client blocks until it receives a matching IntroMessage from server.  
+                            //We don't send one until we determine that additional information is required from client (see 
+                            //switch statements below)
+                            verificationRespone.Response = NetworkResponse.Valid;
+                            verificationRespone.Key = activeConnection.RemoteAccessKey;
+                            verificationRespone.RequestedOperation = FileSyncOperation.SendFile;
+                            verificationRespone.MetaData = clientIntroduction.MetaData;
+
+                            bool isActiveFile = false;
+                            lock (_activeFiles)
+                            {
+                                isActiveFile = _activeFiles.ContainsKey(clientIntroduction.MetaData.Path);
+                                if (isActiveFile == true)
                                 {
-                                    //deleted and renamed ops don't require further information from client.  As such,
-                                    //we can release client block and close connection.
-                                    case WatcherChangeTypes.Deleted:
-                                    case WatcherChangeTypes.Renamed:
-                                        verificationRespone.RequestedOperation = FileSyncOperation.Null;
+                                    _activeFiles.Add(clientIntroduction.MetaData.Path, 1);
+                                }
+                            }
+
+                            //disallow multiple file updates
+                            if (isActiveFile == false)
+                            {
+                                switch (clientIntroduction.RequestedOperation)
+                                {
+                                    case FileSyncOperation.SendFile:
+                                        
+                                        switch (clientIntroduction.MetaData.OperationType)
+                                        {
+                                            //deleted and renamed ops don't require further information from client.  As such,
+                                            //we can release client block and close connection.
+                                            case WatcherChangeTypes.Deleted:
+                                            case WatcherChangeTypes.Renamed:
+                                                verificationRespone.RequestedOperation = FileSyncOperation.Null;
+                                                break;
+                                        }
+
+                                        //send our introductory response
+                                        byte[] introResponse = verificationRespone.ToBytes();
+                                        writer.Write(IPAddress.HostToNetworkOrder(introResponse.Length));
+                                        writer.Write(introResponse);
+                                        writer.Flush();
+                                        HandleFileUpdate(activeConnection, clientIntroduction.MetaData, reader);
                                         break;
                                 }
-
-                                //send our introductory response
+                            }
+                            else
+                            {
+                                verificationRespone.RequestedOperation = FileSyncOperation.Null;
                                 byte[] introResponse = verificationRespone.ToBytes();
                                 writer.Write(IPAddress.HostToNetworkOrder(introResponse.Length));
                                 writer.Write(introResponse);
-                                HandleFileUpdate(activeConnection, clientIntroduction.MetaData, reader);
-                                break;
+                            }
+
+                        }
+                        else
+                        {
+                            Logger.Log("Could not authenticate key for client {0}", client.Client.RemoteEndPoint);
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        Logger.Log("Thread #{0} exception: {1}", _thread_id, ex.Message);
+                    }
+                    finally
+                    {
+                        Logger.Log("Thread #{0} done handling client", _thread_id);
+                        _activeFiles.Remove(clientIntroduction.MetaData.Path);
+                        reader.Close();
+                        writer.Close();
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Logger.Log("Thread #{0} exception: {1}", _thread_id, ex.Message);
-                }
-                finally
-                {
-                    reader.Close();
-                    writer.Close();
-                }
-            }
 
-            if (client.Connected == true)
-            {
-                client.Close();
+                if (client.Connected == true)
+                {
+                }
             }
         }
     }

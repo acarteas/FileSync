@@ -41,9 +41,30 @@ namespace FileSync.Library
             for(int i = 0; i < Config.ServerThreadPoolCount; i++)
             {
                 Server server = new Server(Config, listener, new ConsoleLogger());
+
+                //We listen to server events so that received file changes will not trigger
+                //a send event from the Client 
+                server.ReceiveBegin += Server_ReceiveStart;
+                server.ReceiveEnd += Server_ReceiveComplete;
                 ThreadStart ts = server.Start;
                 ServerThreads.Add(new Thread(ts));
                 ServerThreads[ServerThreads.Count - 1].Start();
+            }
+        }
+
+        private void Server_ReceiveComplete(object sender, ServerEventArgs e)
+        {
+            if(_activeFiles.ContainsKey(e.FileData.Path))
+            {
+                _activeFiles.Remove(e.FileData.Path);
+            }
+        }
+
+        private void Server_ReceiveStart(object sender, ServerEventArgs e)
+        {
+            if(_activeFiles.ContainsKey(e.FileData.Path) == false)
+            {
+                _activeFiles.Add(e.FileData.Path, 1);
             }
         }
 
@@ -52,7 +73,7 @@ namespace FileSync.Library
             //prevent multiple sends
             if(_activeFiles.ContainsKey(data.Path) == false)
             {
-                _activeFiles[data.Path] = 1;
+                _activeFiles.Add(data.Path, 1);
 
                 Client client = new Client(ActiveConnection, new ConsoleLogger());
                 client.DataToSend = data;
@@ -62,8 +83,6 @@ namespace FileSync.Library
                 ClientThread.Start();
                 IsSendingFile = true;
             }
-
-            
         }
 
         private void ClientSendComplete(object sender, ClientEventArgs e)
@@ -77,6 +96,7 @@ namespace FileSync.Library
             {
                 //TODO: failure to send file to server
             }
+
         }
 
         private void WatchedFileChanged(object sender, FileSystemEventArgs e)
