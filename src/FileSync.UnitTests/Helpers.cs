@@ -1,15 +1,14 @@
-﻿using FileSync.Library;
-using FileSync.Library.Config;
+﻿using FileSync.Library.Config;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
+using System.Text;
 
-namespace FileSync.TestSuite
+namespace FileSync.UnitTests
 {
-    class Program
+    public class Helpers
     {
-        static List<FileSyncConfig> GenerateServerConfig()
+        public static List<FileSyncConfig> GenerateServerConfig()
         {
             string workingDirectory = Directory.GetCurrentDirectory();
             string server1Path = Path.Combine(workingDirectory, "server1");
@@ -60,30 +59,6 @@ namespace FileSync.TestSuite
             result.Add(server1Config);
             result.Add(server2Config);
             return result;
-        }
-
-        static void Main(string[] args)
-        {
-            List<FileSyncConfig> configs = GenerateServerConfig();
-            List<FileSyncManager> managers = new List<FileSyncManager>();
-            foreach(var config in configs)
-            {
-                foreach(var connection in config.RemoteConnections)
-                {
-                    managers.Add(new FileSyncManager(config, connection.Value));
-                }
-            }
-
-            //run servers
-            foreach(var manager in managers)
-            {
-                manager.Start();
-            }
-
-            while(true)
-            {
-                Thread.Sleep(100);
-            }
         }
     }
 }

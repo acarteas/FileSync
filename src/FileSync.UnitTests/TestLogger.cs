@@ -1,23 +1,26 @@
-﻿using System;
-
+﻿using FileSync.Library.Logging;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace FileSync.Library.Logging
+namespace FileSync.UnitTests
 {
-    /// <summary>
-    /// Writes log messages to console window
-    /// </summary>
-    public class ConsoleLogger : ILogger
+    public class TestLogger : ILogger
     {
+        public List<string> Messages { get; set; }
+
+        public TestLogger()
+        {
+            Messages = new List<string>();
+        }
         public void Log(string message)
         {
-            Console.WriteLine(message);
+            Messages.Add(message);
         }
 
         public void Log(string message, params object[] args)
         {
-            Console.WriteLine(message, args);
+            Messages.Add(String.Format(message, args));
         }
 
         public void Log(string message, LogPriority severity)
@@ -28,6 +31,6 @@ namespace FileSync.Library.Logging
         {
             Log(message, args);
         }
-
     }
+
 }

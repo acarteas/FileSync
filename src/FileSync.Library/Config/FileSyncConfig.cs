@@ -10,6 +10,12 @@ namespace FileSync.Library.Config
         public int LocalListenPort { get; set; }
         public Dictionary<string, Connection> RemoteConnections { get; set; }
         public int ServerThreadPoolCount { get; set; }
+
+        /// <summary>
+        /// The maximum number of times that the Sync Manager will attempt to 
+        /// send a file update to another machine
+        /// </summary>
+        public int MaxSendAttempts { get; set; }
         public FileSyncConfig()
         {
             RemoteConnections = new Dictionary<string, Connection>();

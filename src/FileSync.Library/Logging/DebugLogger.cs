@@ -19,5 +19,14 @@ namespace FileSync.Library.Logging
         {
             Debug.WriteLine(message, args);
         }
+
+        public void Log(string message, LogPriority severity)
+        {
+            Log(message);
+        }
+        public void Log(LogPriority severity, string message, params object[] args)
+        {
+            Log(message, args);
+        }
     }
 }
