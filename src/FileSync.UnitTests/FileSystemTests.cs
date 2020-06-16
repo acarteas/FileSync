@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace FileSync.UnitTests
 {
-    public class Tests
+    public class FileSystemTests
     {
         List<FileSyncManager> Managers { get; set; }
         List<FileSyncConfig> Configs { get; set; }
@@ -27,10 +27,26 @@ namespace FileSync.UnitTests
                 foreach (var connection in config.RemoteConnections)
                 {
                     //clear existing files
-                    foreach(var file in Directory.GetFiles(connection.Value.LocalSyncPath))
+                    foreach (var file in Directory.GetFiles(connection.Value.LocalSyncPath))
                     {
                         File.Delete(file);
                     }
+                    Managers.Add(new FileSyncManager(config, connection.Value, Logger));
+                }
+            }
+        }
+
+
+        [SetUp]
+        public void Setup()
+        {
+            Configs = Helpers.GenerateServerConfig();
+            Managers = new List<FileSyncManager>();
+            Logger = new TestLogger();
+            foreach (var config in Configs)
+            {
+                foreach (var connection in config.RemoteConnections)
+                {
                     Managers.Add(new FileSyncManager(config, connection.Value, Logger));
                 }
             }
@@ -41,24 +57,90 @@ namespace FileSync.UnitTests
                 manager.Start();
             }
         }
-        [SetUp]
-        public void Setup()
+
+        [TearDown]
+        public void Teardown()
         {
+            //wait for file processing to finish before exiting
+            while (Managers.First().IsProcessingFiles || Managers.Last().IsProcessingFiles)
+            {
+                Thread.Sleep(100);
+            }
+            foreach(var manager in Managers)
+            {
+                manager.Stop();
+            }
         }
 
+        //Creates empty files and verifies that they were copied to the server.
+        [Test, Order(1)]
+        public void Create()
+        {
+            int numFilesToCreate = 12;
+
+            //listen for changes on destination
+            Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
+            {
+                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string destinationFilePath = e.FullLocalPath;
+                FileInfo sfi = new FileInfo(sourceFilePath);
+                FileInfo dfi = new FileInfo(destinationFilePath);
+                Assert.AreEqual(sfi.Length, dfi.Length, "Source and destination file sizes differ on {0}", e.FileData.Path);
+            };
+
+            for (int i = 0; i < numFilesToCreate; i++)
+            {
+                string fileName = Path.Join(Configs.First().RemoteConnections.First().Value.LocalSyncPath, i.ToString() + ".dat");
+                var outputFile = File.Open(fileName, FileMode.Create);
+                outputFile.Close();
+            }
+        }
+
+
         /// <summary>
-        /// Creates 100 files ranging in size 1KB, 2KB, 4KB, 8KB, ... 1MB and verifies that
+        /// Updates files ranging in size 1KB, 2KB, 4KB, 8KB, ... 1MB and verifies that
         /// they were copied to destination server.
-        /// 
-        /// Currently passes in debug, but fails in run mode
         /// </summary>
-        [Test]
-        public void CreateTest()
+        [Test, Order(2)]
+        public void UpdateTest()
         {
             var rng = RandomNumberGenerator.Create();
-            List<byte[]> fileBytes = new List<byte[]>();
             int numFilesToCreate = 12;
             int numBytes = 1024;
+
+            //listen for changes on destination
+            Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
+            {
+                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string destinationFilePath = e.FullLocalPath;
+                FileInfo sfi = new FileInfo(sourceFilePath);
+                FileInfo dfi = new FileInfo(destinationFilePath);
+                Assert.AreEqual(sfi.Length, dfi.Length, "Source and destination file sizes differ on {0}", e.FileData.Path);
+
+                //verify correctness of files on destination server
+                using (var sourceFile = sfi.OpenRead())
+                {
+                    using (var destFile = dfi.OpenRead())
+                    {
+                        byte[] sourceBuffer = new byte[1024];
+                        byte[] destBuffer = new byte[1024];
+                        while (sourceFile.Read(sourceBuffer) > 0 && destFile.Read(destBuffer) > 0)
+                        {
+                            Assert.AreEqual(sourceBuffer, destBuffer);
+                            bool isGood = true;
+                            for (int i = 0; i < sourceBuffer.Length; i++)
+                            {
+                                if (sourceBuffer[i] != destBuffer[i])
+                                {
+                                    isGood = false;
+                                    break;
+                                }
+                            }
+                            Assert.IsTrue(isGood, "File {0} byte mismatch", e.FileData.Path);
+                        }
+                    }
+                }
+            };
             for (int i = 1; i < numFilesToCreate; i++)
             {
                 using (MemoryStream ms = new MemoryStream())
@@ -66,65 +148,90 @@ namespace FileSync.UnitTests
                     BinaryWriter writer = new BinaryWriter(ms);
                     BinaryReader reader = new BinaryReader(ms);
                     byte[] bytes = new byte[numBytes];
-                    fileBytes.Add(bytes);
                     rng.GetBytes(bytes);
                     writer.Write(bytes);
                     ms.Seek(0, SeekOrigin.Begin);
                     string fileName = Path.Join(Configs.First().RemoteConnections.First().Value.LocalSyncPath, i.ToString() + ".dat");
-                    var outputFile = File.Open(fileName, FileMode.Create);
+                    var outputFile = File.Open(fileName, FileMode.Create, FileAccess.Write);
                     outputFile.Write(reader.ReadBytes(numBytes));
                     outputFile.Close();
                 }
                 numBytes *= 2;
             }
+        }
 
-            //spin until all files received or we reach timeout
-            string targetDirectory = Configs.Last().RemoteConnections.Last().Value.LocalSyncPath;
-            int counter = 0;
-            while(Managers.First().IsProcessingFiles == true || Managers.Last().IsProcessingFiles == true)
+        /// <summary>
+        /// Renames files ensuring that the rename took place on the client
+        /// </summary>
+        [Test, Order(3)]
+        public void RenameTest()
+        {
+            //listen for changes on destination
+            Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
             {
-                Thread.Sleep(100);
-                counter++;
+                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string destinationFilePath = e.FullLocalPath;
+                FileInfo sfi = new FileInfo(sourceFilePath);
+                FileInfo dfi = new FileInfo(destinationFilePath);
+                Assert.AreEqual(sfi.Length, dfi.Length, "Source and destination file sizes differ on {0}", e.FileData.Path);
+            };
 
-                //slept for 10 seconds and still not all files, probably something wrong
-                if(counter > 100)
-                {
-                    Assert.Fail("Timeout waiting for files to be created on destination server.");
-                    return;
-                }
-            }
-
-
-            //verify correctness of files on destination server
-            numBytes = 1024;
-            for (int i = 1; i < numFilesToCreate; i++)
+            //change file names on source server
+            foreach(var filePath in Directory.GetFiles(Managers.First().ActiveConnection.LocalSyncPath))
             {
-                string fileName = Path.Join(targetDirectory, i.ToString() + ".dat");
-                byte[] inputBytes = new byte[numBytes];
-                using (var inputFile = File.OpenRead(fileName))
+                FileInfo fi = new FileInfo(filePath);
+                var newName = Path.Join(fi.DirectoryName, Path.GetFileNameWithoutExtension(fi.Name) + "_a.dat");
+                bool keepGoing = true;
+                while(keepGoing)
                 {
-                    inputFile.Read(inputBytes, 0, inputBytes.Length);
-                }
-                bool isGood = true;
-                for (int j = 0; j < inputBytes.Length; j++)
-                {
-                    if (inputBytes[j] != fileBytes[i - 1][j])
+                    try
                     {
-                        isGood = false;
-                        break;
+                        File.Move(fi.FullName, newName);
+                        keepGoing = false;
+                    }
+                    catch(Exception ex)
+                    {
+                        Thread.Sleep(100);
                     }
                 }
-                numBytes *= 2;
-
-                //Assert.IsTrue(isGood, "File {0} byte mismatch", fileName);
-
+                
             }
         }
 
-        [Test]
-        public void Test1()
+        /// <summary>
+        /// Deletes files ensuring that the delete took place on the client
+        /// </summary>
+        [Test, Order(4)]
+        public void DeleteTest()
         {
-            Assert.Pass();
+            //listen for changes on destination
+            Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
+            {
+                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string destinationFilePath = e.FullLocalPath;
+                FileInfo sfi = new FileInfo(sourceFilePath);
+                FileInfo dfi = new FileInfo(destinationFilePath);
+                Assert.AreEqual(sfi.Exists, dfi.Exists, "File still exists on client: {0}", e.FileData.Path);
+            };
+
+            //delete file names on source server
+            foreach (var filePath in Directory.GetFiles(Managers.First().ActiveConnection.LocalSyncPath))
+            {
+                bool keepGoing = true;
+                while (keepGoing)
+                {
+                    try
+                    {
+                        File.Delete(filePath);
+                        keepGoing = false;
+                    }
+                    catch (Exception ex)
+                    {
+                        Thread.Sleep(100);
+                    }
+                }
+
+            }
         }
     }
 }

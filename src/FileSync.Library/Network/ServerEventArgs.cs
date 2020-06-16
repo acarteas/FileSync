@@ -7,5 +7,6 @@ namespace FileSync.Library.Network
     public class ServerEventArgs : EventArgs
     {
         public FileMetaData FileData { get; set; }
+        public string FullLocalPath { get; set; }
     }
 }

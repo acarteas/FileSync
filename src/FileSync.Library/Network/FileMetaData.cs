@@ -78,6 +78,7 @@ namespace FileSync.Library.Network
             LastWriteTimeUtc = DateTime.MinValue.ToUniversalTime();
             LastAccessTimeUtc = DateTime.MinValue.ToUniversalTime();
             CreateTimeUtc = DateTime.MinValue.ToUniversalTime();
+            OldPath = "";
         }
 
         public static FileMetaData FromBytes(byte[] bytes)

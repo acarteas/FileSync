@@ -27,6 +27,7 @@ namespace FileSync.Library.Network
     //TODO: add option for SSL communication (tutorial at https://docs.microsoft.com/en-us/dotnet/api/system.net.security.sslstream?view=netcore-3.1)
     public class Server
     {
+        public bool Run { get; set; }
         public static readonly int BUFFER_SIZE = 1024;
         private static int _thread_counter = 1;
         private int _thread_id;
@@ -40,6 +41,7 @@ namespace FileSync.Library.Network
         public TcpListener Listener { get; protected set; }
         public Server(FileSyncConfig config, TcpListener listener, ILogger logger)
         {
+            Run = true;
             _config = config;
             Listener = listener;
             _thread_id = _thread_counter;
@@ -51,7 +53,6 @@ namespace FileSync.Library.Network
         {
             //find location of file on our file system
             string filePath = Path.Join(activeConnection.LocalSyncPath, metaData.Path);
-            ReceiveBegin(this, new ServerEventArgs() { FileData = metaData });
             try
             {
                 //handle delete and rename operations separately
@@ -107,7 +108,7 @@ namespace FileSync.Library.Network
             }
             finally
             {
-                ReceiveEnd(this, new ServerEventArgs() { FileData = metaData });
+                
             }
 
 
@@ -115,10 +116,21 @@ namespace FileSync.Library.Network
 
         public void Start()
         {
-            while (true)
+            while (Run)
             {
                 Logger.Log("Server Thread #{0} waiting for connection...", _thread_id);
-                var client = Listener.AcceptTcpClient();
+                TcpClient client = null;
+                try
+                {
+                    client = Listener.AcceptTcpClient();
+                }
+                catch(Exception ex)
+                {
+                    Logger.Log("Could not accept TCP client: {0}", ex.Message);
+                    Run = false;
+                    continue;
+                }
+                
                 Logger.Log("Thread #{0} accepting client: {1}", _thread_id, client.Client.RemoteEndPoint);
 
                 //reject connections not stored in our config
@@ -143,6 +155,8 @@ namespace FileSync.Library.Network
                         //proceed if key matches
                         if (clientIntroduction.Key == activeConnection.LocalAccessKey)
                         {
+                            ReceiveBegin(this, new ServerEventArgs() { FileData = clientIntroduction.MetaData });
+
                             //Client blocks until it receives a matching IntroMessage from server.  
                             //We don't send one until we determine that additional information is required from client (see 
                             //switch statements below)
@@ -211,11 +225,8 @@ namespace FileSync.Library.Network
                         _activeFiles.Remove(clientIntroduction.MetaData.Path);
                         reader.Close();
                         writer.Close();
+                        ReceiveEnd(this, new ServerEventArgs() { FileData = clientIntroduction.MetaData });
                     }
-                }
-
-                if (client.Connected == true)
-                {
                 }
             }
         }

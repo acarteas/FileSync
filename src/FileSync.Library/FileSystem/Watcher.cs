@@ -8,6 +8,7 @@ namespace FileSync.Library.FileSystem
 {
     public class Watcher
     {
+        private System.IO.FileSystemWatcher _watcher = null;
         public event EventHandler<FileSystemEventArgs> FileChangeDetected = delegate { };
         public string PathToWatch { get; protected set; }
         protected bool ShouldRun { get; set; }
@@ -22,7 +23,7 @@ namespace FileSync.Library.FileSystem
 
         public void Start()
         {
-            lock(this)
+            lock (this)
             {
                 ShouldRun = true;
             }
@@ -32,9 +33,13 @@ namespace FileSync.Library.FileSystem
 
         public void Stop()
         {
-            lock(this)
+            lock (this)
             {
                 ShouldRun = false;
+                _watcher.Changed -= OnChanged;
+                _watcher.Created -= OnChanged;
+                _watcher.Deleted -= OnChanged;
+                _watcher.Renamed -= OnChanged;
             }
         }
 
@@ -43,33 +48,32 @@ namespace FileSync.Library.FileSystem
         {
 
             // Create a new FileSystemWatcher and set its properties.
-            using (System.IO.FileSystemWatcher watcher = new System.IO.FileSystemWatcher())
-            {
-                watcher.Path = PathToWatch;
-                watcher.IncludeSubdirectories = true;
+            _watcher = new System.IO.FileSystemWatcher();
+            _watcher.Path = PathToWatch;
+            _watcher.IncludeSubdirectories = true;
 
-                // Watch for changes in LastAccess and LastWrite times, and
-                // the renaming of files or directories.
-                watcher.NotifyFilter = NotifyFilters.LastAccess
-                                     | NotifyFilters.LastWrite
-                                     | NotifyFilters.FileName
-                                     | NotifyFilters.DirectoryName;
+            // Watch for changes in LastAccess and LastWrite times, and
+            // the renaming of files or directories.
+            _watcher.NotifyFilter = NotifyFilters.LastAccess
+                                 | NotifyFilters.LastWrite
+                                 | NotifyFilters.FileName
+                                 | NotifyFilters.DirectoryName;
 
-                // Example if we wanted to restrict file types
-                //watcher.Filter = "*.txt";
+            // Example if we wanted to restrict file types
+            //watcher.Filter = "*.txt";
 
-                // Add event handlers.
-                watcher.Changed += OnChanged;
-                watcher.Created += OnChanged;
-                watcher.Deleted += OnChanged;
-                watcher.Renamed += OnChanged;
+            // Add event handlers.
+            _watcher.Changed += OnChanged;
+            _watcher.Created += OnChanged;
+            _watcher.Deleted += OnChanged;
+            _watcher.Renamed += OnChanged;
 
-                // Begin watching.
-                watcher.EnableRaisingEvents = true;
+            // Begin watching.
+            _watcher.EnableRaisingEvents = true;
 
-                // Wait for the user to quit the program.
-                while (ShouldRun == true);
-            }
+            // Wait for the user to quit the program.
+            while (ShouldRun == true) ;
+            _watcher.Dispose();
         }
 
         private void OnChanged(object source, FileSystemEventArgs e)
@@ -78,6 +82,6 @@ namespace FileSync.Library.FileSystem
             // Specify what is done when a file is changed, created, or deleted.
             //Console.WriteLine($"File: {e.FullPath} {e.ChangeType}");
         }
-            
+
     }
 }

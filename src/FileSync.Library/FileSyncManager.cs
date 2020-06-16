@@ -19,7 +19,8 @@ namespace FileSync.Library
 
         protected List<Thread> ServerThreads { get; set; }
         protected Thread ClientThread { get; set; }
-        protected Connection ActiveConnection { get; set; }
+        public Connection ActiveConnection { get; protected set; }
+        TcpListener _listener;
         public bool IsProcessingFiles
         {
             get
@@ -30,7 +31,7 @@ namespace FileSync.Library
         private Dictionary<string, int> _sendingFiles = new Dictionary<string, int>();
         private Dictionary<string, int> _receivingFiles = new Dictionary<string, int>();
         private ILogger _logger = null;
-
+        public event EventHandler<ServerEventArgs> FileReceived = delegate { };
         public FileSyncManager(FileSyncConfig config, Connection connection, ILogger logger)
         {
             ServerThreads = new List<Thread>();
@@ -43,13 +44,13 @@ namespace FileSync.Library
 
         private void StartServer()
         {
-            TcpListener listener = new TcpListener(IPAddress.Any, Config.LocalListenPort);
-            listener.Start();
+            _listener = new TcpListener(IPAddress.Any, Config.LocalListenPort);
+            _listener.Start();
 
             //spawn appropriate number of server threads
             for (int i = 0; i < Config.ServerThreadPoolCount; i++)
             {
-                Server server = new Server(Config, listener, _logger);
+                Server server = new Server(Config, _listener, _logger);
 
                 //We listen to server events so that received file changes will not trigger
                 //a send event from the Client 
@@ -66,15 +67,35 @@ namespace FileSync.Library
             if (_receivingFiles.ContainsKey(e.FileData.Path))
             {
                 _receivingFiles.Remove(e.FileData.Path);
+                e.FullLocalPath = Path.Join(ActiveConnection.LocalSyncPath, e.FileData.Path);
+                FileReceived(this, e);
+            }
+            if (_receivingFiles.ContainsKey(e.FileData.OldPath))
+            {
+                _receivingFiles.Remove(e.FileData.OldPath);
             }
         }
 
         private void ServerReceiveStart(object sender, ServerEventArgs e)
         {
-            //TODO: verify that local file information matches file information passed via ServerEventArgs param
-            if (_receivingFiles.ContainsKey(e.FileData.Path) == false)
+            //AC: getting random null exception.  Cannot figure out why
+            try
             {
-                _receivingFiles.Add(e.FileData.Path, 1);
+                if (e.FileData.Path != null && e.FileData.Path.Length > 0 && _receivingFiles.ContainsKey(e.FileData.Path) == false)
+                {
+                    _receivingFiles.Add(e.FileData.Path, 1);
+                }
+
+                //rename ops cause issues as we are essentially editing 2 files: the old name and the new name.  To avoid conflicts,
+                //add old file name to the list of files that we are receiving
+                if (e.FileData.OperationType == WatcherChangeTypes.Renamed && e.FileData.OldPath != null && e.FileData.OldPath.Length > 0 && _receivingFiles.ContainsKey(e.FileData.OldPath) == false)
+                {
+                    _receivingFiles.Add(e.FileData.OldPath, 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogPriority.High, "Exception in ServerReceiveStart: {0}", ex.Message);
             }
         }
 
@@ -141,6 +162,16 @@ namespace FileSync.Library
 
             //begin listening for changes to file system
             Watcher.Start();
+        }
+
+        public void Stop()
+        {
+            Watcher.Stop();
+            _listener.Stop();
+            foreach (var thread in ServerThreads)
+            {
+                //TODO: kill server threads (Abort not supported in .NET CORE)
+            }
         }
     }
 }
