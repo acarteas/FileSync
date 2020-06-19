@@ -20,9 +20,8 @@ namespace FileSync.Library.Network
         public static readonly int BUFFER_SIZE = 1024;
         private Connection _connection;
         private ILogger _logger;
-        public FileMetaData DataToSend { get; set; }
 
-        public event EventHandler<ClientEventArgs> SendComplete = delegate { };
+        public event EventHandler<ClientSendEventArgs> SendComplete = delegate { };
 
         public Client(Connection connection, ILogger logger)
         {
@@ -30,35 +29,49 @@ namespace FileSync.Library.Network
             _logger = logger;
         }
 
-
-        public void SendFile()
+        private bool Handshake(BinaryReader reader, BinaryWriter writer)
         {
-            ClientEventArgs args = new ClientEventArgs();
-            args.FileName = DataToSend.Path;
+            IMessage toServer = new VerificationMessage(_connection.RemoteAccessKey);
+            byte[] introBytes = toServer.ToBytes();
+            writer.Write(IPAddress.HostToNetworkOrder(introBytes.Length));
+            writer.Write(introBytes);
+
+            //get server response
+            int serverResponseBytes = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+            VerificationMessage serverIntroResponse = new VerificationMessage();
+            if (serverResponseBytes > 0)
+            {
+                serverIntroResponse = new VerificationMessage(reader.ReadBytes(serverResponseBytes));
+            }
+            if(serverIntroResponse.Response == NetworkResponse.Valid && serverIntroResponse.Key == _connection.LocalAccessKey)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public ClientSendEventArgs SendFile(FileMetaData data)
+        {
+            ClientSendEventArgs args = new ClientSendEventArgs();
+            args.FileData = data;
 
             TcpClient client = new TcpClient(_connection.Address, _connection.Port);
+#if DEBUG == false
+            //timeouts don't work well when you're debugging
+            client.SendTimeout = 5000;
+#endif
+
             BufferedStream stream = new BufferedStream(client.GetStream());
             BinaryReader reader = new BinaryReader(stream);
             BinaryWriter writer = new BinaryWriter(stream);
             try
             {
                 //introduce ourselves
-                IMessage toServer = new IntroMessage(_connection.RemoteAccessKey, FileSyncOperation.SendFile, DataToSend);
-                byte[] introBytes = toServer.ToBytes();
-                writer.Write(IPAddress.HostToNetworkOrder(introBytes.Length));
-                writer.Write(introBytes);
-
-                //get server response
-                int serverResponseBytes = IPAddress.NetworkToHostOrder(reader.ReadInt32());
-                IntroMessage serverIntroResponse = new IntroMessage();
-                if(serverResponseBytes > 0)
+                if (Handshake(reader, writer) == true)
                 {
-                    serverIntroResponse = new IntroMessage(reader.ReadBytes(serverResponseBytes));
-                }
+                    //tell server that we would like to send them a file
+                    
 
-                //verify that server accepted our key and that their response key matches our local key
-                if (serverIntroResponse.Response == NetworkResponse.Valid && _connection.LocalAccessKey == serverIntroResponse.Key)
-                {
                     //On certain operations (e.g. rename, delete), there is no need to send the whole file to the server.
                     //In such an event, the server will respond with a Null FileSyncOperation.  
                     if (client.Connected == true && serverIntroResponse.RequestedOperation == FileSyncOperation.SendFile)
@@ -93,9 +106,8 @@ namespace FileSync.Library.Network
                 //notify owner that we are all done
                 SendComplete(this, args);
             }
-            
 
-            
+            return args;
         }
     }
 }

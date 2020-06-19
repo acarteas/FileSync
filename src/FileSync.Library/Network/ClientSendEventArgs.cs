@@ -4,9 +4,9 @@ using System.Text;
 
 namespace FileSync.Library.Network
 {
-    public class ClientEventArgs : EventArgs
+    public class ClientSendEventArgs : EventArgs
     {
-        public string FileName { get; set; }
+        public FileMetaData FileData { get; set; }
         public bool WasSuccessful { get; set; }
     }
 }

@@ -17,24 +17,25 @@ namespace FileSync.Library
         protected Watcher Watcher { get; set; }
         public FileSyncConfig Config { get; set; }
 
-        protected List<Thread> ServerThreads { get; set; }
-        protected Thread ClientThread { get; set; }
+        protected List<Thread> ReceiveThreads { get; set; }
+        protected Thread SendThread { get; set; }
         public Connection ActiveConnection { get; protected set; }
         TcpListener _listener;
         public bool IsProcessingFiles
         {
             get
             {
-                return _sendingFiles.Count != 0 || _receivingFiles.Count != 0;
+                return _sendQueue.IsEmpty() == false || _receivingFiles.Count != 0;
             }
         }
-        private Dictionary<string, int> _sendingFiles = new Dictionary<string, int>();
-        private Dictionary<string, int> _receivingFiles = new Dictionary<string, int>();
+        private Dictionary<string, Server> _receivingFiles = new Dictionary<string, Server>();
         private ILogger _logger = null;
         public event EventHandler<ServerEventArgs> FileReceived = delegate { };
+        private SendQueue _sendQueue = new SendQueue();
+
         public FileSyncManager(FileSyncConfig config, Connection connection, ILogger logger)
         {
-            ServerThreads = new List<Thread>();
+            ReceiveThreads = new List<Thread>();
             _logger = logger;
             Config = config;
             ActiveConnection = connection;
@@ -57,8 +58,8 @@ namespace FileSync.Library
                 server.ReceiveBegin += ServerReceiveStart;
                 server.ReceiveEnd += ServerReceiveComplete;
                 ThreadStart ts = server.Start;
-                ServerThreads.Add(new Thread(ts));
-                ServerThreads[ServerThreads.Count - 1].Start();
+                ReceiveThreads.Add(new Thread(ts));
+                ReceiveThreads[ReceiveThreads.Count - 1].Start();
             }
         }
 
@@ -83,48 +84,28 @@ namespace FileSync.Library
             {
                 if (e.FileData.Path != null && e.FileData.Path.Length > 0 && _receivingFiles.ContainsKey(e.FileData.Path) == false)
                 {
-                    _receivingFiles.Add(e.FileData.Path, 1);
+                    Server server = sender as Server;
+                    if (server != null)
+                    {
+                        _receivingFiles.Add(e.FileData.Path, server);
+                    }
                 }
 
                 //rename ops cause issues as we are essentially editing 2 files: the old name and the new name.  To avoid conflicts,
                 //add old file name to the list of files that we are receiving
                 if (e.FileData.OperationType == WatcherChangeTypes.Renamed && e.FileData.OldPath != null && e.FileData.OldPath.Length > 0 && _receivingFiles.ContainsKey(e.FileData.OldPath) == false)
                 {
-                    _receivingFiles.Add(e.FileData.OldPath, 1);
+                    Server server = sender as Server;
+                    if (server != null)
+                    {
+                        _receivingFiles.Add(e.FileData.OldPath, server);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.Log(LogPriority.High, "Exception in ServerReceiveStart: {0}", ex.Message);
             }
-        }
-
-        private void SyncFile(FileMetaData data)
-        {
-            //prevent multiple sends and from sending a file that we are presently receiving
-            if (_sendingFiles.ContainsKey(data.Path) == false && _receivingFiles.ContainsKey(data.Path) == false)
-            {
-                _sendingFiles.Add(data.Path, 1);
-
-                Client client = new Client(ActiveConnection, _logger);
-                client.DataToSend = data;
-                client.SendComplete += ClientSendComplete;
-                ThreadStart ts = client.SendFile;
-                ClientThread = new Thread(ts);
-                ClientThread.Start();
-            }
-        }
-
-        private void ClientSendComplete(object sender, ClientEventArgs e)
-        {
-            //unlock file
-            _sendingFiles.Remove(e.FileName);
-
-            if (e.WasSuccessful == false)
-            {
-                //TODO: failure to send file to server
-            }
-
         }
 
         private void WatchedFileChanged(object sender, FileSystemEventArgs e)
@@ -151,8 +132,50 @@ namespace FileSync.Library
                 }
             }
 
-            //with metadata built, send to server
-            SyncFile(metaData);
+            //don't queue a file that we are currently receiving
+            if (_receivingFiles.ContainsKey(metaData.Path) == false)
+            {
+                lock (_sendQueue)
+                {
+                    _sendQueue.Enqueue(metaData);
+                }
+            }
+        }
+
+        private void SendLoop()
+        {
+            while (true)
+            {
+                if (_sendQueue.IsEmpty() == false)
+                {
+                    Client client = new Client(ActiveConnection, _logger);
+                    var nextFile = _sendQueue.Front();
+
+                    // don't send a file that we are currently receiving.  Instead,
+                    //wait for file to complete before sending.
+                    if (_receivingFiles.ContainsKey(nextFile.Path) == false)
+                    {
+                        client.DataToSend = nextFile;
+                        var result = client.SendFile();
+                        if (result.WasSuccessful == true)
+                        {
+                            lock (_sendQueue)
+                            {
+                                _sendQueue.Dequeue();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Thread.Sleep(100);
+                    }
+                    
+                }
+                else
+                {
+                    Thread.Sleep(100);
+                }
+            }
         }
 
         public void Start()
@@ -162,13 +185,18 @@ namespace FileSync.Library
 
             //begin listening for changes to file system
             Watcher.Start();
+
+            //begin send thread
+            ThreadStart ts = SendLoop;
+            SendThread = new Thread(ts);
+            SendThread.Start();
         }
 
         public void Stop()
         {
             Watcher.Stop();
             _listener.Stop();
-            foreach (var thread in ServerThreads)
+            foreach (var thread in ReceiveThreads)
             {
                 //TODO: kill server threads (Abort not supported in .NET CORE)
             }
