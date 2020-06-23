@@ -35,10 +35,7 @@ namespace FileSync.Library.Network.Messages
 
         public void FromBinaryStream(BinaryReader reader)
         {
-            //The message ID is in the stream as an identifier for the message factory but is
-            //unnecessary for altering our present state
             int keyLength = 0;
-            int messageId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             Response = (NetworkResponse)IPAddress.NetworkToHostOrder(reader.ReadInt32());
             keyLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             if (keyLength > 0)

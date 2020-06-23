@@ -13,6 +13,8 @@ using System.Reflection.Metadata.Ecma335;
 using System.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
+using System.Xml.XPath;
 
 //expected stream format: 
 //INT-32 (length of auth key)
@@ -32,6 +34,8 @@ namespace FileSync.Library.Network
         private FileSyncConfig Config { get; set; }
         private int ServerId { get; set; }
         private bool ClientHasBeenValidated { get; set; }
+        private FileMetaData FileMetaData { get; set; }
+        private Thread ServerThread { get; set; }
         private static int _server_counter = 1;
         private static readonly int BUFFER_SIZE = 1024;
 
@@ -57,8 +61,9 @@ namespace FileSync.Library.Network
             try
             {
                 //handle delete and rename operations separately
-                if (metaData.OperationType != WatcherChangeTypes.Renamed)
+                if (metaData.OperationType == WatcherChangeTypes.Changed || metaData.OperationType == WatcherChangeTypes.Created)
                 {
+                    //tell client that we would like to receive this file
                     FileInfo localFile = new FileInfo(filePath);
 
                     //if our copy is older than theirs, take it
@@ -107,7 +112,7 @@ namespace FileSync.Library.Network
             catch (Exception ex)
             {
                 Logger.Log("Thread #{0} encountered issues with {1}: {2}", ServerId, metaData.Path, ex.Message);
-                ReceiveEnd(this, new ServerEventArgs() {FileData = metaData, FullLocalPath = filePath, Success = false });
+                ReceiveEnd(this, new ServerEventArgs() { FileData = metaData, FullLocalPath = filePath, Success = false });
             }
             finally
             {
@@ -121,6 +126,13 @@ namespace FileSync.Library.Network
         }
 
         public void Start()
+        {
+            ThreadStart ts = ServerLoop;
+            ServerThread = new Thread(ts);
+            ServerThread.Start();
+        }
+
+        private void ServerLoop()
         {
             while (Run)
             {
@@ -143,8 +155,9 @@ namespace FileSync.Library.Network
                     continue;
                 }
 
-                //new client has not been validated
+                //reset server state
                 ClientHasBeenValidated = false;
+                FileMetaData = null;
 
                 Logger.Log("Server #{0} accepting client: {1}", ServerId, client.Client.RemoteEndPoint);
 
@@ -190,7 +203,68 @@ namespace FileSync.Library.Network
                         if (ClientHasBeenValidated == true)
                         {
                             FileChangedMessage message = currentMessage as FileChangedMessage;
-                            HandleFileUpdate(connection, message.FileData, reader);
+                            string filePath = Path.Join(connection.LocalSyncPath, message.FileData.Path);
+                            FileInfo localFile = new FileInfo(filePath);
+
+                            //we only need the file data when a file on the client was changed and that file is newer than our local copy
+                            if (message.FileData.OperationType == WatcherChangeTypes.Changed || message.FileData.OperationType == WatcherChangeTypes.Created)
+                            {
+                                if (localFile.Exists == false || localFile.LastWriteTimeUtc < message.FileData.LastWriteTimeUtc)
+                                {
+                                    FileMetaData = message.FileData;
+                                    result = new FileRequestMessage(message.FileData);
+                                }
+                                else
+                                {
+                                    result = new NullMessage();
+                                }
+                            }
+                            else
+                            {
+                                if (message.FileData.OperationType == WatcherChangeTypes.Renamed)
+                                {
+                                    string oldFilePath = Path.Join(connection.LocalSyncPath, message.FileData.OldPath);
+                                    if (File.Exists(oldFilePath))
+                                    {
+                                        File.Move(oldFilePath, filePath);
+                                    }
+                                }
+                                if (message.FileData.OperationType == WatcherChangeTypes.Deleted)
+                                {
+                                    if (File.Exists(filePath))
+                                    {
+                                        File.Delete(filePath);
+                                    }
+                                }
+                                result = new NullMessage();
+                            }
+                        }
+                        break;
+                    }
+
+                case MessageIdentifier.FileData:
+                    {
+                        if (ClientHasBeenValidated == true && FileMetaData != null)
+                        {
+                            FileDataMessage message = currentMessage as FileDataMessage;
+                            message.FilePath = Path.Join(connection.LocalSyncPath, FileMetaData.Path);
+                            ReceiveBegin(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.FilePath });
+
+                            try
+                            {
+                                message.FromBinaryStream(reader);
+
+                                //change last write to match client file
+                                File.SetLastWriteTimeUtc(message.FilePath, FileMetaData.LastWriteTimeUtc);
+                                File.SetLastAccessTimeUtc(message.FilePath, FileMetaData.LastAccessTimeUtc);
+                                File.SetCreationTimeUtc(message.FilePath, FileMetaData.CreateTimeUtc);
+                                ReceiveEnd(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.FilePath, Success = true });
+                            }
+                            catch(Exception ex)
+                            {
+                                Logger.Log(LogPriority.High, "Server #{0} error writing file: {1}", ServerId, message.FilePath);
+                                ReceiveEnd(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.FilePath, Success = false });
+                            }
                         }
                         break;
                     }

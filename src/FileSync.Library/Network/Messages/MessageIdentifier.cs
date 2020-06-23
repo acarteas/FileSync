@@ -8,6 +8,8 @@ namespace FileSync.Library.Network.Messages
     {
         Null = 0,
         Verification,
-        FileChanged
+        FileChanged,
+        FileRequest, 
+        FileData
     }
 }

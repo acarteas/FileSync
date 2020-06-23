@@ -8,11 +8,12 @@ namespace FileSync.Library.Network.Messages
 {
     public class FileChangedMessage : IMessage
     {
-        public MessageIdentifier MessageId { get { return MessageIdentifier.FileChanged; } }
+        public virtual MessageIdentifier MessageId { get { return MessageIdentifier.FileChanged; } }
         public FileMetaData FileData { get; private set; }
 
         public FileChangedMessage(FileMetaData md)
         {
+            FileData = md;
         }
 
         public FileChangedMessage(byte[] bytes)
@@ -27,9 +28,6 @@ namespace FileSync.Library.Network.Messages
 
         public void FromBinaryStream(BinaryReader reader)
         {
-            //The message ID is in the stream as an identifier for the message factory but is
-            //unnecessary for altering our present state
-            int messageId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             int fdByteLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             FileData = FileMetaData.FromBytes(reader.ReadBytes(fdByteLength));
         }

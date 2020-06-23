@@ -12,14 +12,22 @@ namespace FileSync.Library.Network.Messages
         {
             IMessage result = null;
 
-            //skim off first int then rewind
+            //skim off first int.  Note that this makes IMessage's From* and To* methods asymmetric.  I don't 
+            //really like that but for now it's good enough.
             MessageIdentifier id = (MessageIdentifier)IPAddress.NetworkToHostOrder(reader.ReadInt32());
-            reader.BaseStream.Seek(-sizeof(int), SeekOrigin.Current);
 
             switch (id)
             {
                 case MessageIdentifier.FileChanged:
                     result = new FileChangedMessage(reader);
+                    break;
+
+                case MessageIdentifier.FileRequest:
+                    result = new FileRequestMessage(reader);
+                    break;
+
+                case MessageIdentifier.FileData:
+                    result = new FileDataMessage();
                     break;
 
                 case MessageIdentifier.Verification:

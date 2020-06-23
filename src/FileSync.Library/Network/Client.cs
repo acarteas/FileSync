@@ -21,8 +21,6 @@ namespace FileSync.Library.Network
         private Connection _connection;
         private ILogger _logger;
 
-        public event EventHandler<ClientSendEventArgs> SendComplete = delegate { };
-
         public Client(Connection connection, ILogger logger)
         {
             _connection = connection;
@@ -33,26 +31,20 @@ namespace FileSync.Library.Network
         {
             IMessage toServer = new VerificationMessage(_connection.RemoteAccessKey);
             byte[] introBytes = toServer.ToBytes();
-            writer.Write(IPAddress.HostToNetworkOrder(introBytes.Length));
             writer.Write(introBytes);
 
             //get server response
-            int serverResponseBytes = IPAddress.NetworkToHostOrder(reader.ReadInt32());
-            VerificationMessage serverIntroResponse = new VerificationMessage();
-            if (serverResponseBytes > 0)
-            {
-                serverIntroResponse = new VerificationMessage(reader.ReadBytes(serverResponseBytes));
-            }
-            if(serverIntroResponse.Response == NetworkResponse.Valid && serverIntroResponse.Key == _connection.LocalAccessKey)
+            VerificationMessage serverIntroResponse = MessageFactory.FromStream(reader) as VerificationMessage;
+            if (serverIntroResponse.Response == NetworkResponse.Valid && serverIntroResponse.Key == _connection.LocalAccessKey)
             {
                 return true;
             }
             return false;
         }
 
-        public ClientSendEventArgs SendFile(FileMetaData data)
+        public ClientSendResult SendFile(FileMetaData data)
         {
-            ClientSendEventArgs args = new ClientSendEventArgs();
+            ClientSendResult args = new ClientSendResult();
             args.FileData = data;
 
             TcpClient client = new TcpClient(_connection.Address, _connection.Port);
@@ -69,15 +61,23 @@ namespace FileSync.Library.Network
                 //introduce ourselves
                 if (Handshake(reader, writer) == true)
                 {
-                    //tell server that we would like to send them a file
-                    
+                    args.WasSuccessful = true;
 
-                    //On certain operations (e.g. rename, delete), there is no need to send the whole file to the server.
-                    //In such an event, the server will respond with a Null FileSyncOperation.  
-                    if (client.Connected == true && serverIntroResponse.RequestedOperation == FileSyncOperation.SendFile)
+                    //tell server that we would like to send them a file
+                    IMessage message = new FileChangedMessage(data);
+                    writer.Write(message.ToBytes());
+
+                    //see if server wants the file
+                    message = MessageFactory.FromStream(reader);
+
+                    //server says they want the whole load
+                    if(message.MessageId == MessageIdentifier.FileRequest)
                     {
+                        message = new FileDataMessage();
+                        writer.Write(message.ToBytes());
+
                         string basePath = _connection.LocalSyncPath;
-                        string localFilePath = Path.Join(basePath, DataToSend.Path);
+                        string localFilePath = Path.Join(basePath, data.Path);
                         if (File.Exists(localFilePath))
                         {
                             FileInfo toSend = new FileInfo(localFilePath);
@@ -95,16 +95,19 @@ namespace FileSync.Library.Network
                     }
                 }
             }
-            catch(Exception ex)
+            catch(EndOfStreamException ex)
+            { 
+                //end of stream exception doesn't necessairly mean that the transfer was not successful so separate out
+                //from generic exception
+            }
+            catch (Exception ex)
             {
+                args.WasSuccessful = false;
                 _logger.Log("Error: {0}", ex.Message);
             }
             finally
             {
                 client.Close();
-
-                //notify owner that we are all done
-                SendComplete(this, args);
             }
 
             return args;

@@ -8,7 +8,7 @@ namespace FileSync.Library.Network.Messages
 {
     public class NullMessage : IMessage
     {
-        public MessageIdentifier MessageId { get { return MessageIdentifier.Null } }
+        public MessageIdentifier MessageId { get { return MessageIdentifier.Null; } }
 
         public NullMessage()
         {
@@ -27,9 +27,6 @@ namespace FileSync.Library.Network.Messages
 
         public void FromBinaryStream(BinaryReader reader)
         {
-            //The message ID is in the stream as an identifier for the message factory but is
-            //unnecessary for altering our present state
-            int messageId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
         }
 
         public void FromBytes(byte[] bytes)
