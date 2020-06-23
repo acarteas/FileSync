@@ -29,24 +29,23 @@ namespace FileSync.Library.Network
     public class Server
     {
         private bool Run { get; set; }
-        public static readonly int BUFFER_SIZE = 1024;
-        private static int _thread_counter = 1;
-        private int _thread_id;
-        public ILogger Logger { get; set; }
-        protected FileSyncConfig _config;
-        private static Dictionary<string, int> _activeFiles = new Dictionary<string, int>();
+        private FileSyncConfig Config { get; set; }
+        private int ServerId { get; set; }
+        private bool ClientHasBeenValidated { get; set; }
+        private static int _server_counter = 1;
+        private static readonly int BUFFER_SIZE = 1024;
 
         public event EventHandler<ServerEventArgs> ReceiveBegin = delegate { };
         public event EventHandler<ServerEventArgs> ReceiveEnd = delegate { };
-
+        public ILogger Logger { get; set; }
         public TcpListener Listener { get; protected set; }
         public Server(FileSyncConfig config, TcpListener listener, ILogger logger)
         {
             Run = true;
-            _config = config;
+            Config = config;
             Listener = listener;
-            _thread_id = _thread_counter;
-            _thread_counter++;
+            ServerId = _server_counter;
+            _server_counter++;
             Logger = logger;
         }
 
@@ -54,6 +53,7 @@ namespace FileSync.Library.Network
         {
             //find location of file on our file system
             string filePath = Path.Join(activeConnection.LocalSyncPath, metaData.Path);
+            ReceiveBegin(this, new ServerEventArgs() { FileData = metaData, FullLocalPath = filePath, Success = false });
             try
             {
                 //handle delete and rename operations separately
@@ -102,14 +102,16 @@ namespace FileSync.Library.Network
                         File.Delete(filePath);
                     }
                 }
+                ReceiveEnd(this, new ServerEventArgs() { FileData = metaData, FullLocalPath = filePath, Success = true });
             }
             catch (Exception ex)
             {
-                Logger.Log("Thread #{0} encountered issues with {1}: {2}", _thread_id, metaData.Path, ex.Message);
+                Logger.Log("Thread #{0} encountered issues with {1}: {2}", ServerId, metaData.Path, ex.Message);
+                ReceiveEnd(this, new ServerEventArgs() {FileData = metaData, FullLocalPath = filePath, Success = false });
             }
             finally
             {
-                
+
             }
         }
 
@@ -122,7 +124,7 @@ namespace FileSync.Library.Network
         {
             while (Run)
             {
-                Logger.Log("Server #{0} waiting for connection...", _thread_id);
+                Logger.Log("Server #{0} waiting for connection...", ServerId);
                 TcpClient client = null;
                 try
                 {
@@ -134,27 +136,30 @@ namespace FileSync.Library.Network
 #endif
 
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     Logger.Log("Could not accept TCP client: {0}", ex.Message);
                     Run = false;
                     continue;
                 }
-                
-                Logger.Log("Server #{0} accepting client: {1}", _thread_id, client.Client.RemoteEndPoint);
+
+                //new client has not been validated
+                ClientHasBeenValidated = false;
+
+                Logger.Log("Server #{0} accepting client: {1}", ServerId, client.Client.RemoteEndPoint);
 
                 //reject connections not stored in our config
                 string address = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
-                if (_config.RemoteConnections.ContainsKey(address) == true)
+                if (Config.RemoteConnections.ContainsKey(address) == true)
                 {
-                    Connection activeConnection = _config.RemoteConnections[address];
+                    Connection activeConnection = Config.RemoteConnections[address];
                     BufferedStream stream = new BufferedStream(client.GetStream());
                     BinaryReader reader = new BinaryReader(stream);
                     BinaryWriter writer = new BinaryWriter(stream);
                     try
                     {
                         IMessage result = ProcessData(activeConnection, reader);
-                        while(result.MessageId != MessageIdentifier.Null)
+                        while (result.MessageId != MessageIdentifier.Null)
                         {
                             writer.Write(result.ToBytes());
                             result = ProcessData(activeConnection, reader);
@@ -162,11 +167,11 @@ namespace FileSync.Library.Network
                     }
                     catch (Exception ex)
                     {
-                        Logger.Log("Server #{0} exception: {1}", _thread_id, ex.Message);
+                        Logger.Log("Server #{0} exception: {1}", ServerId, ex.Message);
                     }
                     finally
                     {
-                        Logger.Log("Server #{0} done handling client", _thread_id);
+                        Logger.Log("Server #{0} done handling client", ServerId);
                         reader.Close();
                         writer.Close();
                     }
@@ -176,14 +181,37 @@ namespace FileSync.Library.Network
 
         protected IMessage ProcessData(Connection connection, BinaryReader reader)
         {
-            IMessage result = MessageFactory.FromStream(reader);
-            switch (result.MessageId)
+            IMessage result = new NullMessage();
+            IMessage currentMessage = MessageFactory.FromStream(reader);
+            switch (currentMessage.MessageId)
             {
                 case MessageIdentifier.FileChanged:
-                    break;
+                    {
+                        if (ClientHasBeenValidated == true)
+                        {
+                            FileChangedMessage message = currentMessage as FileChangedMessage;
+                            HandleFileUpdate(connection, message.FileData, reader);
+                        }
+                        break;
+                    }
+
 
                 case MessageIdentifier.Verification:
-                    break;
+                    {
+                        VerificationMessage message = currentMessage as VerificationMessage;
+                        if (message != null)
+                        {
+                            if (message.Key == connection.LocalAccessKey)
+                            {
+                                result = new VerificationMessage(connection.RemoteAccessKey, NetworkResponse.Valid);
+
+                                //store validation result for later use
+                                ClientHasBeenValidated = true;
+                            }
+                        }
+                        break;
+                    }
+
             }
 
 

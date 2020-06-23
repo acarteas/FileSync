@@ -155,8 +155,7 @@ namespace FileSync.Library
                     //wait for file to complete before sending.
                     if (_receivingFiles.ContainsKey(nextFile.Path) == false)
                     {
-                        client.DataToSend = nextFile;
-                        var result = client.SendFile();
+                        var result = client.SendFile(nextFile);
                         if (result.WasSuccessful == true)
                         {
                             lock (_sendQueue)

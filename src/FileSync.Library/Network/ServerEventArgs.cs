@@ -8,5 +8,6 @@ namespace FileSync.Library.Network
     {
         public FileMetaData FileData { get; set; }
         public string FullLocalPath { get; set; }
+        public bool Success { get; set; }
     }
 }
