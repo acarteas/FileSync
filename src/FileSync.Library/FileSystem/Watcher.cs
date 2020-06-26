@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace FileSync.Library.FileSystem
 {
@@ -41,6 +44,19 @@ namespace FileSync.Library.FileSystem
                 _watcher.Deleted -= OnChanged;
                 _watcher.Renamed -= OnChanged;
             }
+        }
+
+        public async Task<bool> ScanForUpdates()
+        {
+            FileSystemDb db = FileSystemDb.GetInstance();
+            var files = Directory.EnumerateFiles(PathToWatch, "*.*", SearchOption.AllDirectories).AsParallel();
+            foreach(var filePath in files)
+            {
+                var fileInfo = new FileInfo(filePath);
+                FsFile file = new FsFile() {LastModified = fileInfo.LastWriteTimeUtc, Path = fileInfo.FullName, Size = fileInfo.Length };
+                await db.Files.AddOrUpdate(file);
+            }
+            return true;
         }
 
         //based on code from https://docs.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=netcore-3.1

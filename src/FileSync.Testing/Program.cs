@@ -5,9 +5,9 @@ namespace FileSync.Testing
 {
     class Program
     {
-        static void RunFileSystemTests()
+        static void RunNetworkTests()
         {
-            FileSystemTests tests = new FileSystemTests();
+            NetworkTests tests = new NetworkTests();
             tests.Init();
 
             Console.WriteLine("Running file system create test...");
@@ -33,8 +33,15 @@ namespace FileSync.Testing
             tests.Teardown();
         }
 
+        static void RunFileSystemTests()
+        {
+            FileSystemTests tests = new FileSystemTests();
+            tests.ScanForFilesTest();
+        }
+
         static void Main(string[] args)
         {
+            //RunNetworkTests();
             RunFileSystemTests();
         }
     }
