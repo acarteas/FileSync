@@ -22,14 +22,14 @@ namespace FileSync.Testing
             Logger = new TestLogger();
             foreach (var config in Configs)
             {
-                foreach (var connection in config.RemoteConnections)
+                foreach (var share in config.Shares)
                 {
                     //clear existing files
-                    foreach (var file in Directory.GetFiles(connection.Value.LocalSyncPath))
+                    foreach (var file in Directory.GetFiles(share.Key))
                     {
                         File.Delete(file);
                     }
-                    Managers.Add(new FileSyncManager(config, connection.Value, Logger));
+                    Managers.Add(new FileSyncManager(config, share.Value, Logger));
                 }
             }
 
@@ -65,7 +65,7 @@ namespace FileSync.Testing
             //listen for changes on destination
             Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
             {
-                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string sourceFilePath = Path.Join(Managers.First().Share.Path, e.FileData.Path);
                 string destinationFilePath = e.FullLocalPath;
                 FileInfo sfi = new FileInfo(sourceFilePath);
                 FileInfo dfi = new FileInfo(destinationFilePath);
@@ -74,7 +74,7 @@ namespace FileSync.Testing
 
             for (int i = 0; i < numFilesToCreate; i++)
             {
-                string fileName = Path.Join(Configs.First().RemoteConnections.First().Value.LocalSyncPath, i.ToString() + ".dat");
+                string fileName = Path.Join(Configs.First().Shares.First().Key, i.ToString() + ".dat");
                 var outputFile = File.Open(fileName, FileMode.Create);
                 outputFile.Close();
             }
@@ -94,7 +94,7 @@ namespace FileSync.Testing
             //listen for changes on destination
             Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
             {
-                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string sourceFilePath = Path.Join(Managers.First().Share.Path, e.FileData.Path);
                 string destinationFilePath = e.FullLocalPath;
                 FileInfo sfi = new FileInfo(sourceFilePath);
                 FileInfo dfi = new FileInfo(destinationFilePath);
@@ -134,7 +134,7 @@ namespace FileSync.Testing
                     rng.GetBytes(bytes);
                     writer.Write(bytes);
                     ms.Seek(0, SeekOrigin.Begin);
-                    string fileName = Path.Join(Configs.First().RemoteConnections.First().Value.LocalSyncPath, i.ToString() + ".dat");
+                    string fileName = Path.Join(Configs.First().Shares.First().Key, i.ToString() + ".dat");
                     var outputFile = File.Open(fileName, FileMode.Create, FileAccess.Write);
                     outputFile.Write(reader.ReadBytes(numBytes));
                     outputFile.Close();
@@ -151,7 +151,7 @@ namespace FileSync.Testing
             //listen for changes on destination
             Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
             {
-                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string sourceFilePath = Path.Join(Managers.First().Share.Path, e.FileData.Path);
                 string destinationFilePath = e.FullLocalPath;
                 FileInfo sfi = new FileInfo(sourceFilePath);
                 FileInfo dfi = new FileInfo(destinationFilePath);
@@ -159,7 +159,7 @@ namespace FileSync.Testing
             };
 
             //change file names on source server
-            foreach(var filePath in Directory.GetFiles(Managers.First().ActiveConnection.LocalSyncPath))
+            foreach(var filePath in Directory.GetFiles(Managers.First().Share.Path))
             {
                 FileInfo fi = new FileInfo(filePath);
                 var newName = Path.Join(fi.DirectoryName, Path.GetFileNameWithoutExtension(fi.Name) + "_a.dat");
@@ -188,7 +188,7 @@ namespace FileSync.Testing
             //listen for changes on destination
             Managers.Last().FileReceived += (object sender, Library.Network.ServerEventArgs e) =>
             {
-                string sourceFilePath = Path.Join(Managers.First().ActiveConnection.LocalSyncPath, e.FileData.Path);
+                string sourceFilePath = Path.Join(Managers.First().Share.Path, e.FileData.Path);
                 string destinationFilePath = e.FullLocalPath;
                 FileInfo sfi = new FileInfo(sourceFilePath);
                 FileInfo dfi = new FileInfo(destinationFilePath);
@@ -196,7 +196,7 @@ namespace FileSync.Testing
             };
 
             //delete file names on source server
-            foreach (var filePath in Directory.GetFiles(Managers.First().ActiveConnection.LocalSyncPath))
+            foreach (var filePath in Directory.GetFiles(Managers.First().Share.Path))
             {
                 bool keepGoing = true;
                 while (keepGoing)

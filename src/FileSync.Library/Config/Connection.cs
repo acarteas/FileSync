@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -11,6 +12,8 @@ namespace FileSync.Library.Config
         public int Port { get; set; }
         public string LocalAccessKey { get; set; }
         public string RemoteAccessKey { get; set; }
+
+        [JsonIgnore]
         public string LocalSyncPath { get; set; }
         public List<string> DirectoriesToSync { get; set; }
 

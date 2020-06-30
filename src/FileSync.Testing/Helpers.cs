@@ -1,4 +1,5 @@
 ﻿using FileSync.Library.Config;
+using FileSync.Library.Network;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -38,7 +39,8 @@ namespace FileSync.Testing
                 Port = 13002,
                 LocalSyncPath = server1Path
             };
-            server1Config.RemoteConnections["127.0.0.1"] = localConnection;
+            server1Config.Shares.Add(server1Path, new FileSyncShare() { Path = server1Path });
+            server1Config.Shares[server1Path].Connections.Add(localConnection);
 
             FileSyncConfig server2Config = new FileSyncConfig();
             server2Config.LocalListenPort = 13002;
@@ -54,7 +56,8 @@ namespace FileSync.Testing
                 Port = 13001,
                 LocalSyncPath = server2Path
             };
-            server2Config.RemoteConnections["127.0.0.1"] = localConnection;
+            server2Config.Shares.Add(server2Path, new FileSyncShare() { Path = server2Path });
+            server2Config.Shares[server2Path].Connections.Add(localConnection);
             List<FileSyncConfig> result = new List<FileSyncConfig>();
             result.Add(server1Config);
             result.Add(server2Config);

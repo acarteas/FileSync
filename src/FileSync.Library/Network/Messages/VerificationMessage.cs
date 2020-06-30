@@ -11,6 +11,21 @@ namespace FileSync.Library.Network.Messages
         public string Key { get; set; }
         public NetworkResponse Response { get; set; }
 
+        /// <summary>
+        /// Major version of sender (i.e. X.y.y)
+        /// </summary>
+        public int VersionMajor { get; set; }
+
+        /// <summary>
+        /// Minor version of sender (i.e. y.X.y)
+        /// </summary>
+        public int VersionMinor { get; set; }
+
+        /// <summary>
+        /// Patch version of sender (i.e. y.y.X)
+        /// </summary>
+        public int VersionPatch { get; set; }
+
         public MessageIdentifier MessageId { get { return MessageIdentifier.Verification; } }
 
         public VerificationMessage()
@@ -36,6 +51,9 @@ namespace FileSync.Library.Network.Messages
         public void FromBinaryStream(BinaryReader reader)
         {
             int keyLength = 0;
+            VersionMajor = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+            VersionMinor = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+            VersionPatch = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             Response = (NetworkResponse)IPAddress.NetworkToHostOrder(reader.ReadInt32());
             keyLength = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             if (keyLength > 0)
@@ -65,6 +83,9 @@ namespace FileSync.Library.Network.Messages
                 using (BinaryWriter writer = new BinaryWriter(ms))
                 {
                     writer.Write(IPAddress.HostToNetworkOrder((int)MessageId));
+                    writer.Write(IPAddress.HostToNetworkOrder(VersionMajor));
+                    writer.Write(IPAddress.HostToNetworkOrder(VersionMinor));
+                    writer.Write(IPAddress.HostToNetworkOrder(VersionPatch));
                     writer.Write(IPAddress.HostToNetworkOrder((int)Response));
                     writer.Write(IPAddress.HostToNetworkOrder(keyBytes.Length));
                     writer.Write(keyBytes);

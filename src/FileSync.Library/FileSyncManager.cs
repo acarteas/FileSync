@@ -16,9 +16,9 @@ namespace FileSync.Library
     {
         protected Watcher Watcher { get; set; }
         public FileSyncConfig Config { get; set; }
+        public FileSyncShare Share { get; set; }
         protected List<Server> ServerThreads { get; set; }
         protected Thread SendThread { get; set; }
-        public Connection ActiveConnection { get; protected set; }
         TcpListener _listener;
         public bool IsProcessingFiles
         {
@@ -32,13 +32,13 @@ namespace FileSync.Library
         public event EventHandler<ServerEventArgs> FileReceived = delegate { };
         private SendQueue _sendQueue = new SendQueue();
 
-        public FileSyncManager(FileSyncConfig config, Connection connection, ILogger logger)
+        public FileSyncManager(FileSyncConfig config, FileSyncShare share, ILogger logger)
         {
             ServerThreads = new List<Server>();
             _logger = logger;
             Config = config;
-            ActiveConnection = connection;
-            Watcher = new Watcher(connection.LocalSyncPath);
+            Share = share;
+            Watcher = new Watcher(Share.Path);
             Watcher.FileChangeDetected += WatchedFileChanged;
         }
 
@@ -50,7 +50,7 @@ namespace FileSync.Library
             //spawn appropriate number of server threads
             for (int i = 0; i < Config.ServerThreadPoolCount; i++)
             {
-                Server server = new Server(Config, _listener, _logger);
+                Server server = new Server(Share, _listener, _logger);
                 ServerThreads.Add(server);
 
                 //We listen to server events so that received file changes will not trigger
@@ -68,7 +68,7 @@ namespace FileSync.Library
                 if (_receivingFiles.ContainsKey(e.FileData.Path))
                 {
                     _receivingFiles.Remove(e.FileData.Path);
-                    e.FullLocalPath = Path.Join(ActiveConnection.LocalSyncPath, e.FileData.Path);
+                    e.FullLocalPath = Path.Join(Share.Path, e.FileData.Path);
                     FileReceived(this, e);
                 }
                 if (_receivingFiles.ContainsKey(e.FileData.OldPath))
@@ -107,7 +107,7 @@ namespace FileSync.Library
         private void WatchedFileChanged(object sender, FileSystemEventArgs e)
         {
             FileInfo info = new FileInfo(e.FullPath);
-            string formattedRegularPath = Path.GetFullPath(ActiveConnection.LocalSyncPath);
+            string formattedRegularPath = Path.GetFullPath(Share.Path);
             string relativePath = info.FullName.Substring(formattedRegularPath.Length);
 
             FileMetaData metaData = new FileMetaData()
@@ -148,15 +148,25 @@ namespace FileSync.Library
             {
                 if (_sendQueue.IsEmpty() == false)
                 {
-                    Client client = new Client(ActiveConnection, _logger);
                     var nextFile = _sendQueue.Front();
 
                     // don't send a file that we are currently receiving.  Instead,
                     //wait for file to complete before sending.
                     if (_receivingFiles.ContainsKey(nextFile.Path) == false)
                     {
-                        var result = client.SendFile(nextFile);
-                        if (result.WasSuccessful == true)
+                        int successCount = 0;
+                        foreach (var connection in Share.Connections)
+                        {
+                            Client client = new Client(connection, _logger);
+                            var result = client.SendFile(nextFile);
+                            if(result.WasSuccessful == true)
+                            {
+                                successCount++;
+                            }
+                        }
+
+                        //open question: is success only when all servers receive the new data?
+                        if (successCount == Share.Connections.Count)
                         {
                             lock (_sendQueue)
                             {

@@ -8,8 +8,8 @@ namespace FileSync.Library.Config
     public class FileSyncConfig
     {
         public int LocalListenPort { get; set; }
-        public Dictionary<string, Connection> RemoteConnections { get; set; }
         public int ServerThreadPoolCount { get; set; }
+        public Dictionary<string, FileSyncShare> Shares { get; set; }
 
         /// <summary>
         /// The maximum number of times that the Sync Manager will attempt to 
@@ -18,7 +18,7 @@ namespace FileSync.Library.Config
         public int MaxSendAttempts { get; set; }
         public FileSyncConfig()
         {
-            RemoteConnections = new Dictionary<string, Connection>();
+            Shares = new Dictionary<string, FileSyncShare>();
         }
 
         public static string GenerateAccessKey()
