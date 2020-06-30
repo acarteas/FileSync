@@ -1,4 +1,6 @@
-﻿using System;
+﻿using FileSync.Library.Database;
+using FileSync.Library.Database.Models;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -48,7 +50,7 @@ namespace FileSync.Library.FileSystem
 
         public async Task<bool> ScanForUpdates()
         {
-            FileSystemDb db = FileSystemDb.GetInstance();
+            FileSyncDb db = FileSyncDb.GetInstance(PathToWatch);
             var files = Directory.EnumerateFiles(PathToWatch, "*.*", SearchOption.AllDirectories).AsParallel();
             foreach(var filePath in files)
             {

@@ -41,8 +41,8 @@ namespace FileSync.Testing
 
         static void Main(string[] args)
         {
-            RunNetworkTests();
-            //RunFileSystemTests();
+            //RunNetworkTests();
+            RunFileSystemTests();
         }
     }
 }

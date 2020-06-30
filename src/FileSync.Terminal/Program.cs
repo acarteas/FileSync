@@ -27,10 +27,6 @@ namespace FileSync.Terminal
             config = JsonConvert.DeserializeObject<FileSyncConfig>(configText);
         }
 
-        static void GenerateConfig()
-        {
-
-        }
 
         static void Main(string[] args)
         {

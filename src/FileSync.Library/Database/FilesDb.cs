@@ -1,5 +1,6 @@
 ﻿using Dapper;
 using FileSync.Library.Config;
+using FileSync.Library.Database.Models;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -9,7 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSync.Library.FileSystem
+namespace FileSync.Library.Database
 {
     public class FilesDb
     {
