@@ -14,6 +14,8 @@ namespace FileSync.Library.FileSystem
     public class Watcher
     {
         private System.IO.FileSystemWatcher _watcher = null;
+        private FileSyncDb _db;
+
         public event EventHandler<FileSystemEventArgs> FileChangeDetected = delegate { };
         public string PathToWatch { get; protected set; }
         protected bool ShouldRun { get; set; }
@@ -24,6 +26,7 @@ namespace FileSync.Library.FileSystem
             ShouldRun = true;
             ThreadStart ts = BeginWatch;
             RunningThread = new Thread(ts);
+            _db = FileSyncDb.GetInstance(pathToWatch);
         }
 
         public void Start()
@@ -50,13 +53,28 @@ namespace FileSync.Library.FileSystem
 
         public async Task<bool> ScanForUpdates()
         {
-            FileSyncDb db = FileSyncDb.GetInstance(PathToWatch);
             var files = Directory.EnumerateFiles(PathToWatch, "*.*", SearchOption.AllDirectories).AsParallel();
+            List<Task<bool>> tasksToAwait = new List<Task<bool>>();
+            int maxTasksToAwait = 100;
+            int runningTaskCounter = 0;
             foreach(var filePath in files)
             {
                 var fileInfo = new FileInfo(filePath);
-                FsFile file = new FsFile() {LastModified = fileInfo.LastWriteTimeUtc, Path = fileInfo.FullName, Size = fileInfo.Length };
-                await db.Files.AddOrUpdate(file);
+                FsFile file = new FsFile() {LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
+
+                if(runningTaskCounter < maxTasksToAwait)
+                {
+                    _ = Task.Run(async () => {
+                        runningTaskCounter++;
+                        await _db.Files.AddOrUpdate(file);
+                        runningTaskCounter--;
+                    });
+                }
+                else
+                {
+                    await _db.Files.AddOrUpdate(file);
+                }
+                
             }
             return true;
         }
@@ -94,8 +112,16 @@ namespace FileSync.Library.FileSystem
             _watcher.Dispose();
         }
 
+        private string FullToRelative(string basePath, string fullPath)
+        {
+            return fullPath.Substring(basePath.Length + 1);
+        }
+
         private void OnChanged(object source, FileSystemEventArgs e)
         {
+            var fileInfo = new FileInfo(e.FullPath);
+            FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
+            _db.Files.AddOrUpdate(file).Wait();
             FileChangeDetected(this, e);
             // Specify what is done when a file is changed, created, or deleted.
             //Console.WriteLine($"File: {e.FullPath} {e.ChangeType}");

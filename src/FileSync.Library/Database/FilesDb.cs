@@ -18,11 +18,16 @@ namespace FileSync.Library.Database
         public FilesDb(DbConnection db)
         {
             _db = db;
+            _db.Open();
+        }
+
+        ~FilesDb()
+        {
+            _db.Close();
         }
 
         public async Task<bool> Add(FsFile file)
         {
-            _db.Open();
             string sql = @"INSERT INTO files (
                                   path,
                                   size,
@@ -43,7 +48,6 @@ namespace FileSync.Library.Database
             {
                 Debug.WriteLine(ex.Message);
             }
-            _db.Close();
             return affectedRows == 1;
         }
 
@@ -58,10 +62,8 @@ namespace FileSync.Library.Database
 
         public async Task<bool> Exists(FsFile file)
         {
-            _db.Open();
             string sql = @"SELECT COUNT(id) FROM files WHERE path=@path";
             var count = await _db.ExecuteScalarAsync(sql, new { path = file.Path });
-            _db.Close();
             int count_int = -1;
             Int32.TryParse(count.ToString(), out count_int);
             return count_int > 0;
@@ -69,7 +71,6 @@ namespace FileSync.Library.Database
 
         public async Task<bool> Update(FsFile file)
         {
-            _db.Open();
             string sql = @"UPDATE files
                            SET 
                                path = @path,
@@ -86,7 +87,6 @@ namespace FileSync.Library.Database
             {
                 //Debug.WriteLine(ex.Message);
             }
-            _db.Close();
             return affectedRows == 1;
         }
     }

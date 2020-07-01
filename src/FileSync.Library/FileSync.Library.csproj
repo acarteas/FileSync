@@ -6,7 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="fs.db">
+    <None Remove="Database\fs.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Database\fs.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

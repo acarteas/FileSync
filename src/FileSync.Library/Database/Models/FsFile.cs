@@ -7,6 +7,10 @@ namespace FileSync.Library.Database.Models
     public class FsFile
     {
         public int Id { get; set; }
+
+        /// <summary>
+        /// The path of the file relative to the base share directory
+        /// </summary>
         public string Path { get; set; }
         public long Size { get; set; }
         public DateTime LastModified { get; set; }

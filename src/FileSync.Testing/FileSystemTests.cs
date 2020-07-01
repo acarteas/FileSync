@@ -1,4 +1,5 @@
-﻿using FileSync.Library.FileSystem;
+﻿using FileSync.Library.Database;
+using FileSync.Library.FileSystem;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,7 +36,8 @@ namespace FileSync.Testing
 
         public async void ScanForFilesTest()
         {
-            CreateFiles(100);
+            //force refresh the DB
+            FileSyncDb db = FileSyncDb.GetInstance("Z:/Music", true);
             Watcher watcher = new Watcher("Z:/Music");
             await watcher.ScanForUpdates();
         }

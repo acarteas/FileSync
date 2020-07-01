@@ -1,9 +1,16 @@
-﻿using FileSync.Library.Config;
+﻿using Dapper;
+using FileSync.Library.Config;
+using FileSync.Library.Database.Models;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Data.SQLite;
 using System.IO;
+using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace FileSync.Library.Database
 {
@@ -13,42 +20,74 @@ namespace FileSync.Library.Database
 
         public FilesDb Files { get; private set; }
 
-        private FileSyncDb(string share)
+        private FileSyncDb(string share, bool forceInit = false)
         {
+            InitDb(share, forceInit).Wait();
             Files = new FilesDb(FileSystemDbConnection(share));
         }
 
-        private void InitDb(string sharePath)
+        private static string Hash(string toHash)
         {
-            File.ReadAllText(Path.Join(Environment.CurrentDirectory, "Database", "fs.sql"));
+            string hash;
+            using (MD5 hasher = MD5.Create())
+            {
+                var bytes = hasher.ComputeHash(Encoding.UTF8.GetBytes(toHash));
+                hash = Convert.ToBase64String(bytes);
+            }
+            return hash;
         }
 
-        public static FileSyncDb GetInstance(FileSyncShare share)
+        private async Task<int> InitDb(string sharePath, bool forceInit = false)
         {
-            return GetInstance(share.Path);
+            string dbPath = Path.Join(Environment.CurrentDirectory, "fs.sql");
+            string configPath = Path.Join(Environment.CurrentDirectory, string.Format("{0}_config.json", Hash(sharePath)));
+            if(forceInit == true)
+            {
+                File.Delete(configPath);
+                File.Delete(DbFile(sharePath));
+            }
+            if(File.Exists(configPath) == false)
+            {
+                DbConfig config = new DbConfig()
+                {
+                    BasePath = sharePath
+                };
+                File.WriteAllText(configPath, JsonConvert.SerializeObject(config));
+
+                var sql = File.ReadAllText(dbPath);
+                DbConnection conn = FileSystemDbConnection(sharePath);
+                var result = await conn.ExecuteAsync(sql);
+                return result;
+            }
+            return -1;
         }
 
-        public static FileSyncDb GetInstance(string sharePath)
+        public static FileSyncDb GetInstance(FileSyncShare share, bool forceInit = false)
+        {
+            return GetInstance(share.Path, forceInit);
+        }
+
+        public static FileSyncDb GetInstance(string sharePath, bool forceInit = false)
         {
             if (_instances.ContainsKey(sharePath) == false)
             {
-                _instances.Add(sharePath, new FileSyncDb(sharePath));
+                _instances.Add(sharePath, new FileSyncDb(sharePath, forceInit));
             }
             return _instances[sharePath];
         }
 
-        public static string DbFile(string syncPath)
+        public static string DbFile(string sharePath)
         {
-            return Path.Join(Environment.CurrentDirectory, string.Join("fs_{0}.db", syncPath.GetHashCode()));
+            return Path.Join(Environment.CurrentDirectory, string.Format("{0}.db", Hash(sharePath)));
         }
         public static string DbFile(FileSyncShare share)
         {
             return DbFile(share.Path);
         }
 
-        public static SQLiteConnection FileSystemDbConnection(string syncPath)
+        public static SQLiteConnection FileSystemDbConnection(string sharePath)
         {
-            return new SQLiteConnection("Data Source=" + DbFile(syncPath));
+            return new SQLiteConnection("Data Source=" + DbFile(sharePath));
         }
 
         public static SQLiteConnection FileSystemDbConnection(FileSyncShare share)
