@@ -29,10 +29,10 @@ namespace FileSync.Library.Database
         private static string Hash(string toHash)
         {
             string hash;
-            using (MD5 hasher = MD5.Create())
+            using (SHA256 hasher = SHA256.Create())
             {
                 var bytes = hasher.ComputeHash(Encoding.UTF8.GetBytes(toHash));
-                hash = Convert.ToBase64String(bytes);
+                hash = Base32Encoding.ToString(bytes);
             }
             return hash;
         }

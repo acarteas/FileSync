@@ -42,7 +42,7 @@ namespace FileSync.Library.Database
             try
             {
                 affectedRows = await _db.ExecuteAsync(sql,
-                new { path = file.Path, size = file.Size, last_modified = file.LastModified.ToUniversalTime().ToString(Constants.TimeFormatString) });
+                new { path = file.Path, size = file.Size, last_modified = file.Ticks });
             }
             catch (Exception ex)
             {
@@ -53,7 +53,7 @@ namespace FileSync.Library.Database
 
         public async Task<bool> AddOrUpdate(FsFile file)
         {
-            if(await Exists(file))
+            if (await Exists(file))
             {
                 return await Update(file);
             }
@@ -62,11 +62,41 @@ namespace FileSync.Library.Database
 
         public async Task<bool> Exists(FsFile file)
         {
-            string sql = @"SELECT COUNT(id) FROM files WHERE path=@path";
-            var count = await _db.ExecuteScalarAsync(sql, new { path = file.Path });
-            int count_int = -1;
-            Int32.TryParse(count.ToString(), out count_int);
-            return count_int > 0;
+            string sql = @"SELECT id FROM files WHERE path=@path";
+            var result = await _db.QueryAsync<int>(sql, new { path = file.Path });
+            if(result.Count() > 0)
+            {
+                file.Id = result.First();
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<FsFile> Get(int id)
+        {
+            string sql = @"SELECT 
+                           id AS Id,
+                            path AS Path,
+                            size AS Size,
+                            last_modified AS Ticks
+                           FROM files
+                           WHERE id = @id";
+            var result = await _db.QueryAsync<FsFile>(sql, new { id = id });
+            return result.FirstOrDefault();
+        }
+
+        public async Task<List<FsFile>> GetMoreRecentThan(DateTime dt)
+        {
+            string sql = @"SELECT 
+                           id AS Id,
+                            path AS Path,
+                            size AS Size,
+                            last_modified AS Ticks
+                           FROM files
+                           WHERE last_modified > @lastModified";
+            var result = await _db.QueryAsync<FsFile>(sql, new { lastModified = dt.ToUniversalTime().Ticks });
+            return result.ToList();
+
         }
 
         public async Task<bool> Update(FsFile file)
@@ -81,7 +111,7 @@ namespace FileSync.Library.Database
             try
             {
                 affectedRows = await _db.ExecuteAsync(sql,
-                new { id = file.Id, path = file.Path, size = file.Size, last_modified = file.LastModified.ToUniversalTime().ToString(Constants.TimeFormatString) });
+                new { id = file.Id, path = file.Path, size = file.Size, last_modified = file.Ticks });
             }
             catch (Exception ex)
             {

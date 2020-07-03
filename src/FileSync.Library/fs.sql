@@ -1,5 +1,5 @@
 --
--- File generated with SQLiteStudio v3.2.1 on Fri Jun 26 10:55:35 2020
+-- File generated with SQLiteStudio v3.2.1 on Fri Jul 3 09:04:21 2020
 --
 -- Text encoding used: System
 --
@@ -10,10 +10,10 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS files;
 
 CREATE TABLE files (
-    id            INTEGER  PRIMARY KEY AUTOINCREMENT,
-    path          VARCHAR  UNIQUE,
-    size          INT,
-    last_modified DATETIME
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    path          VARCHAR UNIQUE,
+    size          BIGINT,
+    last_modified BIGINT
 );
 
 

@@ -104,9 +104,9 @@ namespace FileSync.Library
             }
         }
 
-        private void WatchedFileChanged(object sender, FileSystemEventArgs e)
+        private void WatchedFileChanged(object sender, FsFileSystemEventArgs e)
         {
-            FileInfo info = new FileInfo(e.FullPath);
+            FileInfo info = new FileInfo(e.BaseArgs.FullPath);
             string formattedRegularPath = Path.GetFullPath(Share.Path);
             string relativePath = info.FullName.Substring(formattedRegularPath.Length);
 
@@ -115,12 +115,12 @@ namespace FileSync.Library
                 LastWriteTimeUtc = info.LastWriteTimeUtc,
                 LastAccessTimeUtc = info.LastAccessTimeUtc,
                 CreateTimeUtc = info.CreationTimeUtc,
-                OperationType = e.ChangeType,
+                OperationType = e.BaseArgs.ChangeType,
                 Path = relativePath
             };
-            if (e.ChangeType == WatcherChangeTypes.Renamed)
+            if (e.BaseArgs.ChangeType == WatcherChangeTypes.Renamed)
             {
-                RenamedEventArgs renamed = e as RenamedEventArgs;
+                RenamedEventArgs renamed = e.BaseArgs as RenamedEventArgs;
                 if (renamed != null)
                 {
                     string oldRelativePath = renamed.OldFullPath.Substring(formattedRegularPath.Length);
@@ -138,7 +138,7 @@ namespace FileSync.Library
             }
             else
             {
-                _logger.Log("Ignoring change on file {0}", e.FullPath);
+                _logger.Log("Ignoring change on file {0}", e.BaseArgs.FullPath);
             }
         }
 

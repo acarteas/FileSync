@@ -13,6 +13,18 @@ namespace FileSync.Library.Database.Models
         /// </summary>
         public string Path { get; set; }
         public long Size { get; set; }
-        public DateTime LastModified { get; set; }
+
+        public DateTime LastModified
+        {
+            get
+            {
+                return new DateTime(Ticks, DateTimeKind.Utc);
+            }
+            set
+            {
+                Ticks = value.Ticks;
+            }
+        }
+        public long Ticks { get; set; }
     }
 }

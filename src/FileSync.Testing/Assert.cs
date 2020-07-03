@@ -34,6 +34,12 @@ namespace FileSync.Testing
             }
         }
 
+        public static void Fail(string message = "", params object[] args)
+        {
+            message = String.Format(message, args);
+            throw new Exception(message);
+        }
+
         public static void IsTrue(bool item1, string message = "", params object[] args)
         {
             if(item1 != true)

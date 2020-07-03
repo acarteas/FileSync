@@ -59,16 +59,16 @@ namespace FileSync.Terminal
             Console.WriteLine("Ending program");
         }
 
-        private static void HandleFileChange(object sender, FileSystemEventArgs e)
+        private static void HandleFileChange(object sender, FsFileSystemEventArgs e)
         {
-            RenamedEventArgs renamedArgs = e as RenamedEventArgs;
+            RenamedEventArgs renamedArgs = e.BaseArgs as RenamedEventArgs;
 
             //file or directory
-            bool isDirectory = Directory.Exists(e.FullPath);
+            bool isDirectory = Directory.Exists(e.BaseArgs.FullPath);
             //using(BinaryReader reader = new BinaryReader(File.OpenRead(e.FullPath)))
             //{
             //}
-            Console.WriteLine("detected {0} at {1}", e.ChangeType.ToString(), e.Name);
+            Console.WriteLine("detected {0} at {1}", e.BaseArgs.ChangeType.ToString(), e.BaseArgs.Name);
         }
     }
 

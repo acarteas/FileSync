@@ -36,7 +36,7 @@ namespace FileSync.Testing
         static void RunFileSystemTests()
         {
             FileSystemTests tests = new FileSystemTests();
-            tests.ScanForFilesTest();
+            tests.Run();
         }
 
         static void Main(string[] args)
