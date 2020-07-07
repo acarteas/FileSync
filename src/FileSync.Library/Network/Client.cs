@@ -42,6 +42,48 @@ namespace FileSync.Library.Network
             return false;
         }
 
+        public ClientSendResult GetUpdates(DateTime dt, string baseSavePath)
+        {
+            ClientSendResult result = new ClientSendResult();
+            TcpClient client = new TcpClient(_connection.Address, _connection.Port);
+#if DEBUG == false
+            //timeouts don't work well when you're debugging
+            client.SendTimeout = 5000;
+#endif
+
+            BufferedStream stream = new BufferedStream(client.GetStream());
+            BinaryReader reader = new BinaryReader(stream);
+            BinaryWriter writer = new BinaryWriter(stream);
+            try
+            {
+                if (Handshake(reader, writer) == true)
+                {
+                    result.WasSuccessful = true;
+
+                    //send request
+                    IMessage message = new GetUpdatesMessage(dt);
+                    writer.Write(message.ToBytes());
+
+                    //read response
+                    message = MessageFactory.FromStream(reader);
+                    if (message.MessageId == MessageIdentifier.GetUpdates)
+                    {
+                        GetUpdatesMessage response = message as GetUpdatesMessage;
+                        for (int i = 0; i < response.FileCout; i++)
+                        {
+                            //write to local FS
+                            FileMetaData fmd = response.Files[i];
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+            return result;
+        }
+
         public ClientSendResult SendFile(FileMetaData data)
         {
             ClientSendResult args = new ClientSendResult();
@@ -56,59 +98,58 @@ namespace FileSync.Library.Network
             BufferedStream stream = new BufferedStream(client.GetStream());
             BinaryReader reader = new BinaryReader(stream);
             BinaryWriter writer = new BinaryWriter(stream);
-            try
+
+            string basePath = _connection.LocalSyncPath;
+            string localFilePath = Path.Join(basePath, data.Path);
+            if (File.Exists(localFilePath))
             {
-                //introduce ourselves
-                if (Handshake(reader, writer) == true)
+                try
                 {
-                    args.WasSuccessful = true;
-
-                    //tell server that we would like to send them a file
-                    IMessage message = new FileChangedMessage(data);
-                    writer.Write(message.ToBytes());
-
-                    //see if server wants the file
-                    message = MessageFactory.FromStream(reader);
-
-                    //server says they want the whole load
-                    if(message.MessageId == MessageIdentifier.FileRequest)
+                    //introduce ourselves
+                    if (Handshake(reader, writer) == true)
                     {
-                        message = new FileDataMessage();
+                        args.WasSuccessful = true;
+
+                        //tell server that we would like to send them a file
+                        IMessage message = new FileChangedMessage(data);
                         writer.Write(message.ToBytes());
 
-                        string basePath = _connection.LocalSyncPath;
-                        string localFilePath = Path.Join(basePath, data.Path);
-                        if (File.Exists(localFilePath))
+                        //see if server wants the file
+                        message = MessageFactory.FromStream(reader);
+
+                        //server says they want the whole load
+                        if (message.MessageId == MessageIdentifier.FileRequest)
                         {
                             FileInfo toSend = new FileInfo(localFilePath);
                             using (var fileReader = new BinaryReader(File.OpenRead(localFilePath)))
                             {
-                                byte[] buffer;
-                                writer.Write(IPAddress.HostToNetworkOrder(toSend.Length));
-                                while ((buffer = fileReader.ReadBytes(BUFFER_SIZE)).Length > 0)
+                                var fileDataMessage = new FileDataMessage()
                                 {
-                                    writer.Write(buffer);
-                                }
-                                writer.Flush();
+                                    RemotePath = data.Path,
+                                    FileSize = toSend.Length,
+                                    FileStream = fileReader
+                                };
+                                fileDataMessage.ToStream(writer);
                             }
                         }
                     }
                 }
+                catch (EndOfStreamException ex)
+                {
+                    //end of stream exception doesn't necessairly mean that the transfer was not successful so separate out
+                    //from generic exception
+                }
+                catch (Exception ex)
+                {
+                    args.WasSuccessful = false;
+                    _logger.Log("Error: {0}", ex.Message);
+                }
+                finally
+                {
+                    client.Close();
+                }
             }
-            catch(EndOfStreamException ex)
-            { 
-                //end of stream exception doesn't necessairly mean that the transfer was not successful so separate out
-                //from generic exception
-            }
-            catch (Exception ex)
-            {
-                args.WasSuccessful = false;
-                _logger.Log("Error: {0}", ex.Message);
-            }
-            finally
-            {
-                client.Close();
-            }
+
 
             return args;
         }

@@ -17,15 +17,6 @@ using System.Linq;
 using System.Threading;
 using System.Xml.XPath;
 
-//expected stream format: 
-//INT-32 (length of auth key)
-//BYTE[] (auth key)
-//AUTH-KEY (512 bytes)
-//INT-32 (length of file name)
-//STRING-UTF8 (file name)
-//INT-32 (length relative path location)
-//STRING-UTF8 (relative path location)
-//BYTE[] (binary file data)
 namespace FileSync.Library.Network
 {
     //TODO: add option for SSL communication (tutorial at https://docs.microsoft.com/en-us/dotnet/api/system.net.security.sslstream?view=netcore-3.1)
@@ -180,23 +171,24 @@ namespace FileSync.Library.Network
                         if (ClientHasBeenValidated == true && FileMetaData != null)
                         {
                             FileDataMessage message = currentMessage as FileDataMessage;
-                            message.FilePath = Path.Join(connection.LocalSyncPath, FileMetaData.Path);
-                            ReceiveBegin(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.FilePath });
+                            message.LocalPath = Path.Join(connection.LocalSyncPath, FileMetaData.Path);
+                            ReceiveBegin(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.LocalPath });
 
                             try
                             {
                                 message.FromBinaryStream(reader);
+                                message.WriteFileData();
 
                                 //change last write to match client file
-                                File.SetLastWriteTimeUtc(message.FilePath, FileMetaData.LastWriteTimeUtc);
-                                File.SetLastAccessTimeUtc(message.FilePath, FileMetaData.LastAccessTimeUtc);
-                                File.SetCreationTimeUtc(message.FilePath, FileMetaData.CreateTimeUtc);
-                                ReceiveEnd(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.FilePath, Success = true });
+                                File.SetLastWriteTimeUtc(message.LocalPath, FileMetaData.LastWriteTimeUtc);
+                                File.SetLastAccessTimeUtc(message.LocalPath, FileMetaData.LastAccessTimeUtc);
+                                File.SetCreationTimeUtc(message.LocalPath, FileMetaData.CreateTimeUtc);
+                                ReceiveEnd(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.LocalPath, Success = true });
                             }
                             catch(Exception ex)
                             {
-                                Logger.Log(LogPriority.High, "Server #{0} error writing file: {1}", ServerId, message.FilePath);
-                                ReceiveEnd(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.FilePath, Success = false });
+                                Logger.Log(LogPriority.High, "Server #{0} error writing file: {1}", ServerId, message.LocalPath);
+                                ReceiveEnd(this, new ServerEventArgs() { FileData = FileMetaData, FullLocalPath = message.LocalPath, Success = false });
                             }
                         }
                         break;

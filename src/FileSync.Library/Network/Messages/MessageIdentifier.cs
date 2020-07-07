@@ -10,6 +10,7 @@ namespace FileSync.Library.Network.Messages
         Verification,
         FileChanged,
         FileRequest, 
-        FileData
+        FileData,
+        GetUpdates
     }
 }

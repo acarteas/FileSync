@@ -93,7 +93,9 @@ namespace FileSync.Library.Database
                             size AS Size,
                             last_modified AS Ticks
                            FROM files
-                           WHERE last_modified > @lastModified";
+                           WHERE last_modified > @lastModified
+                           ORDER BY last_modified ASC
+                            ";
             var result = await _db.QueryAsync<FsFile>(sql, new { lastModified = dt.ToUniversalTime().Ticks });
             return result.ToList();
 

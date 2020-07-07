@@ -53,7 +53,7 @@ namespace FileSync.Library.Network.Messages
                     writer.Write(IPAddress.HostToNetworkOrder((int)MessageId));
                     byte[] fdBytes = FileData.ToBytes();
                     writer.Write(IPAddress.HostToNetworkOrder(fdBytes.Length));
-                    writer.Write(FileData.ToBytes());
+                    writer.Write(fdBytes);
                 }
                 result = ms.ToArray();
             }

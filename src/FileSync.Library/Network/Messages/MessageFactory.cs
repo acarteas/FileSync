@@ -27,11 +27,15 @@ namespace FileSync.Library.Network.Messages
                     break;
 
                 case MessageIdentifier.FileData:
-                    result = new FileDataMessage();
+                    result = new FileDataMessage(reader);
                     break;
 
                 case MessageIdentifier.Verification:
                     result = new VerificationMessage(reader);
+                    break;
+
+                case MessageIdentifier.GetUpdates:
+                    result = new GetUpdatesMessage(reader);
                     break;
 
                 case MessageIdentifier.Null:
