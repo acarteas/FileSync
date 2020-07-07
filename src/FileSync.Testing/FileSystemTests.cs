@@ -4,6 +4,7 @@ using FileSync.Library.FileSystem;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -53,7 +54,7 @@ namespace FileSync.Testing
             //force refresh the DB for this test
             FileSyncDb db = FileSyncDb.GetInstance(serverPath, true);
             Watcher watcher = new Watcher(serverPath);
-            await watcher.ScanForUpdates();
+            await watcher.ScanForFiles();
 
             //verify correctness
             List<FsFile> dbFiles = await db.Files.GetMoreRecentThan(now);
@@ -69,9 +70,61 @@ namespace FileSync.Testing
         }
 
         /// <summary>
+        /// Assumes ScanForFilesTest has been run previously
+        /// </summary>
+        /// <returns></returns>
+        private async Task ScanForFilesWithDateRestrictionTest()
+        {
+            string serverPath = Path.Join(Environment.CurrentDirectory, "server1");
+            DateTime now = DateTime.Now;
+            Thread.Sleep(100);
+            CreateFiles(serverPath, 10);
+
+            //force refresh the DB for this test
+            Watcher watcher = new Watcher(serverPath);
+            int result = await watcher.ScanForFiles(now);
+            Assert.AreEqual(10, result, "FS Watcher did not find all 10 items");
+        }
+
+        /// <summary>
+        /// Assumes ScanForFilesTest has been run previously
+        /// </summary>
+        private void GetRecentFilesTest()
+        {
+            string serverPath = Path.Join(Environment.CurrentDirectory, "server1");
+            DateTime now = DateTime.Now;
+            Thread.Sleep(100);
+            int changeCounter = 0;
+            int filesToChange = 10;
+
+            Watcher watcher = new Watcher(serverPath);
+            watcher.Start();
+            watcher.FileChangeDetected += async (object sender, FsFileSystemEventArgs args) =>
+            {
+                Thread.Sleep(100);
+                FileInfo fi = new FileInfo(args.BaseArgs.FullPath);
+                var files = await watcher.GetRecentFiles(fi.LastWriteTimeUtc.AddTicks(-25));
+                var query = files.Where(f => f.FullName == fi.FullName).Count();
+                Assert.AreEqual(1, query, "DB did not contain updated item: {0}", args.RelativePath);
+                changeCounter++;
+            };
+            CreateFiles(serverPath, filesToChange);
+
+            while(changeCounter < filesToChange)
+            {
+                Thread.Sleep(100);
+            }
+            watcher.Stop();
+            while(watcher.IsRunning)
+            {
+                Thread.Sleep(100);
+            }
+        }
+
+        /// <summary>
         /// Assumes that ScanForFilesTest has already been run.
         /// </summary>
-        private async Task UpdatefilesTest()
+        private void UpdatefilesTest()
         {
             string serverPath = Path.Join(Environment.CurrentDirectory, "server1");
             FileSyncDb db = FileSyncDb.GetInstance(serverPath);
@@ -102,15 +155,26 @@ namespace FileSync.Testing
                 Thread.Sleep(10);
             }
             watcher.Stop();
+            while(watcher.IsRunning)
+            {
+                Thread.Sleep(100);
+            }
         }
 
         public async void Run()
         {
-            Console.WriteLine("Scanning for files test...");
+            Console.WriteLine("ScanForFilesTest...");
             await ScanForFilesTest();
 
-            Console.Write("Watcher file update test...");
-            await UpdatefilesTest();
+            Console.WriteLine("ScanForFilesWithDateRestrictionTest...");
+            await ScanForFilesWithDateRestrictionTest();
+
+            Console.WriteLine("GetRecentFilesTest...");
+            GetRecentFilesTest();
+
+            Console.Write("UpdatefilesTest..");
+            UpdatefilesTest();
+
         }
     }
 }

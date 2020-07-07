@@ -19,6 +19,7 @@ namespace FileSync.Library.FileSystem
         public event EventHandler<FsFileSystemEventArgs> FileChangeDetected = delegate { };
         public string PathToWatch { get; protected set; }
         protected bool ShouldRun { get; set; }
+        public bool IsRunning { get; protected set; }
         public Thread RunningThread { get; protected set; }
         public Watcher(string pathToWatch = ".")
         {
@@ -34,6 +35,7 @@ namespace FileSync.Library.FileSystem
             lock (this)
             {
                 ShouldRun = true;
+                IsRunning = true;
             }
 
             RunningThread.Start();
@@ -51,18 +53,56 @@ namespace FileSync.Library.FileSystem
             }
         }
 
-        public async Task<bool> ScanForUpdates()
+        /// <summary>
+        /// Returns a list of files who have changed after the supplied date
+        /// </summary>
+        /// <param name="minDate">The age at which to consider a file as "recent."  Files with a greater date will be returned.</param>
+        /// <returns></returns>
+        public async Task<List<FileInfo>> GetRecentFiles(DateTime minDate)
+        {
+            List<FsFile> dbFiles = await _db.Files.GetMoreRecentThan(minDate.ToUniversalTime());
+            List<FileInfo> result = new List<FileInfo>();
+            foreach(var dbFile in dbFiles)
+            {
+                result.Add(new FileInfo(Path.Join(PathToWatch, dbFile.Path)));
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Scans the watched directory for files 
+        /// </summary>
+        /// <param name="minDate">Will only match files whose modified date is greater than the supplied parameter</param>
+        /// <returns></returns>
+        public async Task<int> ScanForFiles(DateTime minDate)
+        {
+            DateTime utcTime = minDate.ToUniversalTime();
+            var files = Directory.EnumerateFiles(PathToWatch, "*.*", SearchOption.AllDirectories).Where(f => (new FileInfo(f)).LastWriteTimeUtc > utcTime).AsParallel();
+            return await ScanForFilesHelper(files);
+        }
+
+        /// <summary>
+        /// Scans the watched directory for files
+        /// </summary>
+        /// <returns></returns>
+        public async Task<int> ScanForFiles()
         {
             var files = Directory.EnumerateFiles(PathToWatch, "*.*", SearchOption.AllDirectories).AsParallel();
+            return await ScanForFilesHelper(files);
+        }
+
+        private async Task<int> ScanForFilesHelper(ParallelQuery<string> files)
+        {
+            int fileCounter = 0;
             List<Task<bool>> tasksToAwait = new List<Task<bool>>();
             int maxTasksToAwait = 100;
             int runningTaskCounter = 0;
-            foreach(var filePath in files)
+            foreach (var filePath in files)
             {
+                fileCounter++;
                 var fileInfo = new FileInfo(filePath);
-                FsFile file = new FsFile() {LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
-
-                if(runningTaskCounter < maxTasksToAwait)
+                FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
+                if (runningTaskCounter < maxTasksToAwait)
                 {
                     _ = Task.Run(async () => {
                         runningTaskCounter++;
@@ -75,11 +115,11 @@ namespace FileSync.Library.FileSystem
                     await _db.Files.AddOrUpdate(file);
                 }
             }
-            while(runningTaskCounter > 0)
+            while (runningTaskCounter > 0)
             {
                 Thread.Sleep(10);
             }
-            return true;
+            return fileCounter;
         }
 
         //based on code from https://docs.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=netcore-3.1
@@ -113,6 +153,7 @@ namespace FileSync.Library.FileSystem
             // Wait for the user to quit the program.
             while (ShouldRun == true) ;
             _watcher.Dispose();
+            IsRunning = false;
         }
 
         public static string FullToRelative(string basePath, string fullPath)
@@ -124,13 +165,15 @@ namespace FileSync.Library.FileSystem
         {
             var fileInfo = new FileInfo(e.FullPath);
             FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
-            _db.Files.AddOrUpdate(file).Wait();
-            FsFileSystemEventArgs args = new FsFileSystemEventArgs();
-            args.BaseArgs = e;
-            args.RelativePath = FullToRelative(PathToWatch, fileInfo.FullName);
-            FileChangeDetected(this, args);
-            // Specify what is done when a file is changed, created, or deleted.
-            //Console.WriteLine($"File: {e.FullPath} {e.ChangeType}");
+            Task.Run(async () => {
+                await _db.Files.AddOrUpdate(file);
+                FsFileSystemEventArgs args = new FsFileSystemEventArgs
+                {
+                    BaseArgs = e,
+                    RelativePath = FullToRelative(PathToWatch, fileInfo.FullName)
+                };
+                FileChangeDetected(this, args);
+            });
         }
 
     }
