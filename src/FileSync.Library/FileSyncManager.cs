@@ -154,6 +154,13 @@ namespace FileSync.Library
                     //wait for file to complete before sending.
                     if (_receivingFiles.ContainsKey(nextFile.Path) == false)
                     {
+                        string localPath = Path.Join(Share.Path, nextFile.Path);
+                        if(File.Exists(localPath) == false && (nextFile.OperationType == WatcherChangeTypes.Created || nextFile.OperationType == WatcherChangeTypes.Changed))
+                        {
+                                //file was moved, renamed, or deleted before we got to this event.
+                                _sendQueue.Dequeue();
+                                continue;
+                        }
                         int successCount = 0;
                         foreach (var connection in Share.Connections)
                         {

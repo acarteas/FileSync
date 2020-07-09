@@ -27,7 +27,7 @@ namespace FileSync.Testing
 
             FileSyncConfig server1Config = new FileSyncConfig();
             server1Config.LocalListenPort = 13001;
-            server1Config.ServerThreadPoolCount = 10;
+            server1Config.ServerThreadPoolCount = 1;
 
             Connection localConnection = new Connection()
             {
@@ -44,7 +44,7 @@ namespace FileSync.Testing
 
             FileSyncConfig server2Config = new FileSyncConfig();
             server2Config.LocalListenPort = 13002;
-            server2Config.ServerThreadPoolCount = 10;
+            server2Config.ServerThreadPoolCount = 1;
 
             localConnection = new Connection()
             {

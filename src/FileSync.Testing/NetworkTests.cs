@@ -15,6 +15,33 @@ namespace FileSync.Testing
         List<FileSyncConfig> Configs { get; set; }
         TestLogger Logger { get; set; }
 
+        public void Run()
+        {
+            Init();
+
+            Console.WriteLine("Running file system create test...");
+            Create();
+            Thread.Sleep(100);
+            Wait();
+            
+            Console.WriteLine("Running file system update test...");
+            UpdateTest();
+            Thread.Sleep(100);
+            Wait();
+            
+            Console.WriteLine("Running file system rename test...");
+            RenameTest();
+            Thread.Sleep(100);
+            Wait();
+            
+            //Console.WriteLine("Running file system delete test...");
+            //DeleteTest();
+            Thread.Sleep(100);
+            Wait();
+
+            //Teardown();
+        }
+
         public void Init()
         {
             Configs = Helpers.GenerateServerConfig();

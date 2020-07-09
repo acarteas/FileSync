@@ -139,7 +139,7 @@ namespace FileSync.Testing
                 changeCounter++;
 
                 FsFile changed = new FsFile() { Path = args.RelativePath };
-                if(await db.Files.Exists(changed) == false)
+                if(await db.Files.Exists(changed.Path) < 1)
                 {
                     Assert.Fail("Expected item {0} does not exist in DB", changed.Path);
                 }

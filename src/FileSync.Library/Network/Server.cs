@@ -101,6 +101,9 @@ namespace FileSync.Library.Network
                             writer.Write(result.ToBytes());
                             result = ProcessData(activeConnection, reader);
                         }
+
+                        //send null message back to client to close connection
+                        writer.Write(result.ToBytes());
                     }
                     catch (Exception ex)
                     {
@@ -152,6 +155,12 @@ namespace FileSync.Library.Network
                                     {
                                         File.Move(oldFilePath, filePath);
                                     }
+                                    else
+                                    {
+                                        //we're being informed about a file that isn't on our local file system.  Request file from client
+                                        FileMetaData = message.FileData;
+                                        result = new FileRequestMessage(message.FileData);
+                                    }
                                 }
                                 if (message.FileData.OperationType == WatcherChangeTypes.Deleted)
                                 {
@@ -176,7 +185,6 @@ namespace FileSync.Library.Network
 
                             try
                             {
-                                message.FromBinaryStream(reader);
                                 message.WriteFileData();
 
                                 //change last write to match client file

@@ -163,17 +163,49 @@ namespace FileSync.Library.FileSystem
 
         private void OnChanged(object source, FileSystemEventArgs e)
         {
-            var fileInfo = new FileInfo(e.FullPath);
-            FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
-            Task.Run(async () => {
-                await _db.Files.AddOrUpdate(file);
-                FsFileSystemEventArgs args = new FsFileSystemEventArgs
-                {
-                    BaseArgs = e,
-                    RelativePath = FullToRelative(PathToWatch, fileInfo.FullName)
-                };
+            FsFileSystemEventArgs args = new FsFileSystemEventArgs
+            {
+                BaseArgs = e,
+                RelativePath = FullToRelative(PathToWatch, e.FullPath)
+            };
+
+            //renamed and deleted events need to have the record removed from the DB
+            if (e.ChangeType == WatcherChangeTypes.Renamed || e.ChangeType == WatcherChangeTypes.Deleted)
+            {
+                Task.Run(async () => {
+                    string oldFilePath = null;
+                    switch (e.ChangeType)
+                    {
+                        case WatcherChangeTypes.Renamed:
+                            oldFilePath = FullToRelative(PathToWatch, (e as RenamedEventArgs).OldFullPath);
+                            break;
+
+                        case WatcherChangeTypes.Deleted:
+                            oldFilePath = FullToRelative(PathToWatch, e.FullPath);
+                            break;
+                    }
+                    await _db.Files.Remove(oldFilePath);
+                });
+            }
+
+            //everything except deletes will get a new or updated record
+            if (e.ChangeType != WatcherChangeTypes.Deleted)
+            {
+                var fileInfo = new FileInfo(e.FullPath);
+                FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, e.FullPath), Size = fileInfo.Length };
+                Task.Run(async () => {
+                    await _db.Files.AddOrUpdate(file);
+                    FileChangeDetected(this, args);
+                });
+            }
+            else
+            {
+                //regardless, we need to fire a change event
                 FileChangeDetected(this, args);
-            });
+            }
+            
+            
+            
         }
 
     }

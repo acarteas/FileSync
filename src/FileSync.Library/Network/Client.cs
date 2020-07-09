@@ -88,23 +88,24 @@ namespace FileSync.Library.Network
         {
             ClientSendResult args = new ClientSendResult();
             args.FileData = data;
-
-            TcpClient client = new TcpClient(_connection.Address, _connection.Port);
+            string basePath = _connection.LocalSyncPath;
+            string localFilePath = Path.Join(basePath, data.Path);
+            TcpClient client = null;
+            if (File.Exists(localFilePath))
+            {
+                try
+                {
+                    client = new TcpClient(_connection.Address, _connection.Port);
 #if DEBUG == false
             //timeouts don't work well when you're debugging
             client.SendTimeout = 5000;
 #endif
 
-            BufferedStream stream = new BufferedStream(client.GetStream());
-            BinaryReader reader = new BinaryReader(stream);
-            BinaryWriter writer = new BinaryWriter(stream);
+                    BufferedStream stream = new BufferedStream(client.GetStream());
+                    BinaryReader reader = new BinaryReader(stream);
+                    BinaryWriter writer = new BinaryWriter(stream);
 
-            string basePath = _connection.LocalSyncPath;
-            string localFilePath = Path.Join(basePath, data.Path);
-            if (File.Exists(localFilePath))
-            {
-                try
-                {
+
                     //introduce ourselves
                     if (Handshake(reader, writer) == true)
                     {
@@ -132,6 +133,9 @@ namespace FileSync.Library.Network
                                 fileDataMessage.ToStream(writer);
                             }
                         }
+
+                        //wait for termination mesage from server
+                        message = MessageFactory.FromStream(reader);
                     }
                 }
                 catch (EndOfStreamException ex)
@@ -146,7 +150,11 @@ namespace FileSync.Library.Network
                 }
                 finally
                 {
-                    client.Close();
+                    if(client != null)
+                    {
+                        client.Close();
+                    }
+                    
                 }
             }
 

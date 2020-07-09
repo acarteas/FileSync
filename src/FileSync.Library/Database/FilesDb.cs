@@ -53,23 +53,24 @@ namespace FileSync.Library.Database
 
         public async Task<bool> AddOrUpdate(FsFile file)
         {
-            if (await Exists(file))
+            int fileId = await Exists(file.Path);
+            if (fileId > 0)
             {
+                file.Id = fileId;
                 return await Update(file);
             }
             return await Add(file);
         }
 
-        public async Task<bool> Exists(FsFile file)
+        public async Task<int> Exists(string path)
         {
             string sql = @"SELECT id FROM files WHERE path=@path";
-            var result = await _db.QueryAsync<int>(sql, new { path = file.Path });
-            if(result.Count() > 0)
+            var result = await _db.QueryAsync<int>(sql, new { path = path });
+            if (result.Count() > 0)
             {
-                file.Id = result.First();
-                return true;
+                return result.First();
             }
-            return false;
+            return -1;
         }
 
         public async Task<FsFile> Get(int id)
@@ -98,7 +99,24 @@ namespace FileSync.Library.Database
                             ";
             var result = await _db.QueryAsync<FsFile>(sql, new { lastModified = dt.ToUniversalTime().Ticks });
             return result.ToList();
+        }
 
+        public async Task<bool> Remove(string fileName)
+        {
+            string sql = @"DELETE FROM files
+                         WHERE path = @path
+                         LIMIT 1";
+            var affectedRows = 0;
+            try
+            {
+                affectedRows = await _db.ExecuteAsync(sql,
+                new { path = fileName });
+            }
+            catch (Exception ex)
+            {
+                //Debug.WriteLine(ex.Message);
+            }
+            return affectedRows == 1;
         }
 
         public async Task<bool> Update(FsFile file)
@@ -108,7 +126,7 @@ namespace FileSync.Library.Database
                                path = @path,
                                size = @size,
                                last_modified = @last_modified
-                         WHERE id = @id ;";
+                         WHERE id = @id";
             var affectedRows = 0;
             try
             {
