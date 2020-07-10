@@ -63,7 +63,7 @@ namespace FileSync.Library.FileSystem
         {
             List<FsFile> dbFiles = await _db.Files.GetMoreRecentThan(minDate.ToUniversalTime());
             List<FileInfo> result = new List<FileInfo>();
-            foreach(var dbFile in dbFiles)
+            foreach (var dbFile in dbFiles)
             {
                 result.Add(new FileInfo(Path.Join(PathToWatch, dbFile.Path)));
             }
@@ -94,33 +94,17 @@ namespace FileSync.Library.FileSystem
 
         private async Task<int> ScanForFilesHelper(ParallelQuery<string> files)
         {
-            int fileCounter = 0;
-            List<Task<bool>> tasksToAwait = new List<Task<bool>>();
-            int maxTasksToAwait = 100;
-            int runningTaskCounter = 0;
-            foreach (var filePath in files)
+ 
+            //AC: I think I was getting an issue where the file search would terminate before all files had
+            //been processed.  Forcing ToList() should make the work happen up front.
+            var allFiles = files.ToList();
+            foreach (var filePath in allFiles)
             {
-                fileCounter++;
                 var fileInfo = new FileInfo(filePath);
                 FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, fileInfo.FullName), Size = fileInfo.Length };
-                if (runningTaskCounter < maxTasksToAwait)
-                {
-                    _ = Task.Run(async () => {
-                        runningTaskCounter++;
-                        await _db.Files.AddOrUpdate(file);
-                        runningTaskCounter--;
-                    });
-                }
-                else
-                {
-                    await _db.Files.AddOrUpdate(file);
-                }
+                await _db.Files.AddOrUpdate(file);
             }
-            while (runningTaskCounter > 0)
-            {
-                Thread.Sleep(10);
-            }
-            return fileCounter;
+            return allFiles.Count;
         }
 
         //based on code from https://docs.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=netcore-3.1
@@ -173,7 +157,8 @@ namespace FileSync.Library.FileSystem
             //renamed and deleted events need to have the record removed from the DB
             if (e.ChangeType == WatcherChangeTypes.Renamed || e.ChangeType == WatcherChangeTypes.Deleted)
             {
-                Task.Run(async () => {
+                Task.Run(async () =>
+                {
                     string oldFilePath = null;
                     switch (e.ChangeType)
                     {
@@ -194,7 +179,8 @@ namespace FileSync.Library.FileSystem
             {
                 var fileInfo = new FileInfo(e.FullPath);
                 FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, e.FullPath), Size = fileInfo.Length };
-                Task.Run(async () => {
+                Task.Run(async () =>
+                {
                     await _db.Files.AddOrUpdate(file);
                     FileChangeDetected(this, args);
                 });
@@ -204,9 +190,9 @@ namespace FileSync.Library.FileSystem
                 //regardless, we need to fire a change event
                 FileChangeDetected(this, args);
             }
-            
-            
-            
+
+
+
         }
 
     }
