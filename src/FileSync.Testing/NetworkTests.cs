@@ -1,5 +1,6 @@
 using FileSync.Library;
 using FileSync.Library.Config;
+using FileSync.Library.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,7 +14,7 @@ namespace FileSync.Testing
     {
         List<FileSyncManager> Managers { get; set; }
         List<FileSyncConfig> Configs { get; set; }
-        TestLogger Logger { get; set; }
+        ILogger Logger { get; set; }
 
         public void Run()
         {
@@ -21,32 +22,32 @@ namespace FileSync.Testing
 
             Console.WriteLine("Running file system create test...");
             Create();
-            Thread.Sleep(100);
+            Thread.Sleep(1000);
             Wait();
             
             Console.WriteLine("Running file system update test...");
             UpdateTest();
-            Thread.Sleep(100);
+            Thread.Sleep(1000);
             Wait();
             
             Console.WriteLine("Running file system rename test...");
             RenameTest();
-            Thread.Sleep(100);
+            Thread.Sleep(1000);
             Wait();
             
-            //Console.WriteLine("Running file system delete test...");
-            //DeleteTest();
-            Thread.Sleep(100);
+            Console.WriteLine("Running file system delete test...");
+            DeleteTest();
+            Thread.Sleep(1000);
             Wait();
 
-            //Teardown();
+            Teardown();
         }
 
         public void Init()
         {
             Configs = Helpers.GenerateServerConfig();
             Managers = new List<FileSyncManager>();
-            Logger = new TestLogger();
+            Logger = new ConsoleLogger();
             foreach (var config in Configs)
             {
                 foreach (var share in config.Shares)
