@@ -53,6 +53,7 @@ namespace FileSync.Library.Network
         {
             ThreadStart ts = ServerLoop;
             ServerThread = new Thread(ts);
+            ServerThread.IsBackground = true;
             ServerThread.Start();
         }
 

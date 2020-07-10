@@ -91,72 +91,77 @@ namespace FileSync.Library.Network
             string basePath = _connection.LocalSyncPath;
             string localFilePath = Path.Join(basePath, data.Path);
             TcpClient client = null;
-            if (File.Exists(localFilePath))
+
+            try
             {
-                try
-                {
-                    client = new TcpClient(_connection.Address, _connection.Port);
+                client = new TcpClient(_connection.Address, _connection.Port);
 #if DEBUG == false
             //timeouts don't work well when you're debugging
             client.SendTimeout = 5000;
 #endif
 
-                    BufferedStream stream = new BufferedStream(client.GetStream());
-                    BinaryReader reader = new BinaryReader(stream);
-                    BinaryWriter writer = new BinaryWriter(stream);
+                BufferedStream stream = new BufferedStream(client.GetStream());
+                BinaryReader reader = new BinaryReader(stream);
+                BinaryWriter writer = new BinaryWriter(stream);
 
 
-                    //introduce ourselves
-                    if (Handshake(reader, writer) == true)
+                //introduce ourselves
+                if (Handshake(reader, writer) == true)
+                {
+                    args.WasSuccessful = true;
+
+                    //tell server that we would like to send them a file
+                    IMessage message = new FileChangedMessage(data);
+                    writer.Write(message.ToBytes());
+
+                    //see if server wants the file
+                    message = MessageFactory.FromStream(reader);
+
+                    //server says they want the whole load
+                    if (message.MessageId == MessageIdentifier.FileRequest)
                     {
-                        args.WasSuccessful = true;
-
-                        //tell server that we would like to send them a file
-                        IMessage message = new FileChangedMessage(data);
-                        writer.Write(message.ToBytes());
-
-                        //see if server wants the file
-                        message = MessageFactory.FromStream(reader);
-
-                        //server says they want the whole load
-                        if (message.MessageId == MessageIdentifier.FileRequest)
+                        //The server should never request a null file. 
+                        if (File.Exists(localFilePath) == false)
                         {
-                            FileInfo toSend = new FileInfo(localFilePath);
-                            using (var fileReader = new BinaryReader(File.OpenRead(localFilePath)))
-                            {
-                                var fileDataMessage = new FileDataMessage()
-                                {
-                                    RemotePath = data.Path,
-                                    FileSize = toSend.Length,
-                                    FileStream = fileReader
-                                };
-                                fileDataMessage.ToStream(writer);
-                            }
+                            throw new Exception(String.Format("Server requested null file: {0}", localFilePath));
                         }
 
-                        //wait for termination mesage from server
-                        message = MessageFactory.FromStream(reader);
+                        FileInfo toSend = new FileInfo(localFilePath);
+                        using (var fileReader = new BinaryReader(File.OpenRead(localFilePath)))
+                        {
+                            var fileDataMessage = new FileDataMessage()
+                            {
+                                RemotePath = data.Path,
+                                FileSize = toSend.Length,
+                                FileStream = fileReader
+                            };
+                            fileDataMessage.ToStream(writer);
+                        }
                     }
-                }
-                catch (EndOfStreamException ex)
-                {
-                    //end of stream exception doesn't necessairly mean that the transfer was not successful so separate out
-                    //from generic exception
-                }
-                catch (Exception ex)
-                {
-                    args.WasSuccessful = false;
-                    _logger.Log("Error: {0}", ex.Message);
-                }
-                finally
-                {
-                    if(client != null)
-                    {
-                        client.Close();
-                    }
-                    
+
+                    //wait for termination mesage from server
+                    message = MessageFactory.FromStream(reader);
                 }
             }
+            catch (EndOfStreamException ex)
+            {
+                //end of stream exception doesn't necessairly mean that the transfer was not successful so separate out
+                //from generic exception
+            }
+            catch (Exception ex)
+            {
+                args.WasSuccessful = false;
+                _logger.Log("Error: {0}", ex.Message);
+            }
+            finally
+            {
+                if (client != null)
+                {
+                    client.Close();
+                }
+
+            }
+
 
 
             return args;

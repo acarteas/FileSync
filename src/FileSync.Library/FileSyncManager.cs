@@ -133,12 +133,13 @@ namespace FileSync.Library
             {
                 lock (_sendQueue)
                 {
+                    _logger.Log(LogPriority.Low, "FileSyncManager: Adding {0} to send queue", metaData.Path);
                     _sendQueue.Enqueue(metaData);
                 }
             }
             else
             {
-                _logger.Log("Ignoring change on file {0}", e.BaseArgs.FullPath);
+                _logger.Log(LogPriority.Low, "FileSyncManager: Ignoring change on file {0}", e.BaseArgs.FullPath);
             }
         }
 
@@ -205,6 +206,9 @@ namespace FileSync.Library
             //begin send thread
             ThreadStart ts = SendLoop;
             SendThread = new Thread(ts);
+
+            //AC: background threads terminate when main() finishes
+            SendThread.IsBackground = true;
             SendThread.Start();
         }
 

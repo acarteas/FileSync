@@ -27,6 +27,7 @@ namespace FileSync.Library.FileSystem
             ShouldRun = true;
             ThreadStart ts = BeginWatch;
             RunningThread = new Thread(ts);
+            RunningThread.IsBackground = true;
             _db = FileSyncDb.GetInstance(pathToWatch);
         }
 
