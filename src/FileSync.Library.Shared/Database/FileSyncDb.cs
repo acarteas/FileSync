@@ -1,5 +1,5 @@
 ﻿using Dapper;
-using FileSync.Library.FileSystem.Database.Models;
+using FileSync.Library.Shared.Database.Models;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -11,7 +11,7 @@ using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSync.Library.FileSystem.Database
+namespace FileSync.Library.Shared.Database
 {
     public class FileSyncDb
     {

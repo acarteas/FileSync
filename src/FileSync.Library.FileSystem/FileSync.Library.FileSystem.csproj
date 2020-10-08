@@ -5,26 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="fs.sql" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="fs.sql">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Database\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.0.35" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="System.Data.SQLite" Version="1.0.113.1" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\FileSync.Library.Shared\FileSync.Library.Shared.csproj" />
   </ItemGroup>
 

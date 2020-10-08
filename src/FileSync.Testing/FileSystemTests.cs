@@ -1,6 +1,6 @@
 ﻿using FileSync.Library.FileSystem;
-using FileSync.Library.FileSystem.Database;
-using FileSync.Library.FileSystem.Database.Models;
+using FileSync.Library.Shared.Database;
+using FileSync.Library.Shared.Database.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace FileSync.Library.FileSystem.Database.Models
+namespace FileSync.Library.Shared.Database.Models
 {
     public class FsFile
     {
