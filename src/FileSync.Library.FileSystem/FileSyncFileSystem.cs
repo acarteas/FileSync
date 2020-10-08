@@ -78,7 +78,7 @@ namespace FileSync.Library.FileSystem
         }
 
         //based on code from https://docs.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=netcore-3.1
-        private void Start()
+        public void Start()
         {
 
             // Create a new FileSystemWatcher and set its properties.
@@ -119,24 +119,21 @@ namespace FileSync.Library.FileSystem
                 RelativePath = FullToRelative(PathToWatch, e.FullPath)
             };
 
-            //renamed and deleted events need to have the record removed from the DB
+            //renamed and deleted events trigger soft deletes in the DB
             if (e.ChangeType == WatcherChangeTypes.Renamed || e.ChangeType == WatcherChangeTypes.Deleted)
             {
-                Task.Run(async () =>
+                string oldFilePath = null;
+                switch (e.ChangeType)
                 {
-                    string oldFilePath = null;
-                    switch (e.ChangeType)
-                    {
-                        case WatcherChangeTypes.Renamed:
-                            oldFilePath = FullToRelative(PathToWatch, (e as RenamedEventArgs).OldFullPath);
-                            break;
+                    case WatcherChangeTypes.Renamed:
+                        oldFilePath = FullToRelative(PathToWatch, (e as RenamedEventArgs).OldFullPath);
+                        break;
 
-                        case WatcherChangeTypes.Deleted:
-                            oldFilePath = FullToRelative(PathToWatch, e.FullPath);
-                            break;
-                    }
-                    await _db.Files.Remove(oldFilePath);
-                });
+                    case WatcherChangeTypes.Deleted:
+                        oldFilePath = FullToRelative(PathToWatch, e.FullPath);
+                        break;
+                }
+                _db.Files.Remove(oldFilePath);
             }
 
             //everything except deletes will get a new or updated record
@@ -144,19 +141,10 @@ namespace FileSync.Library.FileSystem
             {
                 var fileInfo = new FileInfo(e.FullPath);
                 FsFile file = new FsFile() { LastModified = fileInfo.LastWriteTimeUtc, Path = FullToRelative(PathToWatch, e.FullPath), Size = fileInfo.Length };
-                Task.Run(async () =>
-                {
-                    await _db.Files.AddOrUpdate(file);
-                    FileChangeDetected(this, args);
-                });
-            }
-            else
-            {
-                //regardless, we need to fire a change event
-                FileChangeDetected(this, args);
+                _db.Files.AddOrUpdate(file);
             }
 
-
+            FileChangeDetected(this, args);
 
         }
 

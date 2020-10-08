@@ -1,6 +1,6 @@
-﻿using FileSync.Library.Database;
-using FileSync.Library.Database.Models;
-using FileSync.Library.FileSystem;
+﻿using FileSync.Library.FileSystem;
+using FileSync.Library.FileSystem.Database;
+using FileSync.Library.FileSystem.Database.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -53,7 +53,7 @@ namespace FileSync.Testing
 
             //force refresh the DB for this test
             FileSyncDb db = FileSyncDb.GetInstance(serverPath, true);
-            Watcher watcher = new Watcher(serverPath);
+            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
             await watcher.ScanForFiles();
 
             //verify correctness
@@ -81,7 +81,7 @@ namespace FileSync.Testing
             CreateFiles(serverPath, 10);
 
             //force refresh the DB for this test
-            Watcher watcher = new Watcher(serverPath);
+            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
             int result = await watcher.ScanForFiles(now);
             Assert.AreEqual(10, result, "FS Watcher did not find all 10 items");
         }
@@ -89,7 +89,7 @@ namespace FileSync.Testing
         /// <summary>
         /// Assumes ScanForFilesTest has been run previously
         /// </summary>
-        private void GetRecentFilesTest()
+        private async Task GetRecentFilesTest()
         {
             string serverPath = Path.Join(Environment.CurrentDirectory, "server1");
             DateTime now = DateTime.Now;
@@ -97,55 +97,45 @@ namespace FileSync.Testing
             int changeCounter = 0;
             int filesToChange = 10;
 
-            Watcher watcher = new Watcher(serverPath);
-            watcher.Start();
-            watcher.FileChangeDetected += async (object sender, FsFileSystemEventArgs args) =>
+            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
+            List<FileInfo> changedFiles = new List<FileInfo>();
+            watcher.FileChangeDetected += (object sender, FsFileSystemEventArgs args) =>
             {
-                Thread.Sleep(100);
-                FileInfo fi = new FileInfo(args.BaseArgs.FullPath);
-                var files = await watcher.GetRecentFiles(fi.LastWriteTimeUtc.AddTicks(-25));
-                var query = files.Where(f => f.FullName == fi.FullName).Count();
-                Assert.AreEqual(1, query, "DB did not contain updated item: {0}", args.RelativePath);
                 changeCounter++;
+                FileInfo fi = new FileInfo(args.BaseArgs.FullPath);
+                changedFiles.Add(fi);
             };
+            watcher.Start();
             CreateFiles(serverPath, filesToChange);
-
             while(changeCounter < filesToChange)
             {
                 Thread.Sleep(100);
             }
-            watcher.Stop();
-            while(watcher.IsRunning)
+            foreach(var fi in changedFiles)
             {
-                Thread.Sleep(100);
+                var files = await watcher.GetRecentFiles(fi.LastWriteTimeUtc.AddTicks(-25));
+                var query = files.Where(f => f.FullName == fi.FullName).Count();
+                Assert.AreEqual(1, query, "DB did not contain updated item: {0}", fi.FullName);
             }
         }
 
         /// <summary>
         /// Assumes that ScanForFilesTest has already been run.
         /// </summary>
-        private void UpdatefilesTest()
+        private async Task UpdatefilesTest()
         {
             string serverPath = Path.Join(Environment.CurrentDirectory, "server1");
             FileSyncDb db = FileSyncDb.GetInstance(serverPath);
             int changeCounter = 0;
             int filesToChange = 10;
             DateTime now = DateTime.Now;
-            Thread.Sleep(100);
 
-            Watcher watcher = new Watcher(serverPath);
-            watcher.FileChangeDetected += async (object sender, FsFileSystemEventArgs args) =>
+            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
+            List<FsFileSystemEventArgs> changedFiles = new List<FsFileSystemEventArgs>();
+            watcher.FileChangeDetected += (object sender, FsFileSystemEventArgs args) =>
             {
                 changeCounter++;
-
-                FsFile changed = new FsFile() { Path = args.RelativePath };
-                if(await db.Files.Exists(changed.Path) < 1)
-                {
-                    Assert.Fail("Expected item {0} does not exist in DB", changed.Path);
-                }
-                changed = await db.Files.Get(changed.Id);
-                FileInfo info = new FileInfo(args.BaseArgs.FullPath);
-                Assert.AreEqual(changed.LastModified, info.LastWriteTimeUtc, "Db record and file record mismatch on {0}", changed.Path);
+                changedFiles.Add(args);
             };
             watcher.Start();
 
@@ -154,10 +144,16 @@ namespace FileSync.Testing
             {
                 Thread.Sleep(10);
             }
-            watcher.Stop();
-            while(watcher.IsRunning)
+            foreach(var args in changedFiles)
             {
-                Thread.Sleep(100);
+                if (await db.Files.Exists(args.RelativePath) < 1)
+                {
+                    Assert.Fail("Expected item {0} does not exist in DB", args.RelativePath);
+                }
+                int id = await db.Files.Exists(args.RelativePath);
+                var changed = await db.Files.Get(id);
+                FileInfo info = new FileInfo(args.BaseArgs.FullPath);
+                Assert.AreEqual(changed.LastModified, info.LastWriteTimeUtc, "Db record and file record mismatch on {0}", changed.Path);
             }
         }
 

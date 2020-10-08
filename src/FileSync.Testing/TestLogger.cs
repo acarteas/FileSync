@@ -1,10 +1,10 @@
-﻿using FileSync.Library.Logging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace FileSync.Testing
 {
+    /*
     public class TestLogger : ILogger
     {
         public List<string> Messages { get; set; }
@@ -32,5 +32,5 @@ namespace FileSync.Testing
             Log(message, args);
         }
     }
-
+    */
 }

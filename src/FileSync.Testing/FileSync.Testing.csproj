@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FileSync.Library\FileSync.Library.csproj" />
+    <ProjectReference Include="..\FileSync.Library.FileSystem\FileSync.Library.FileSystem.csproj" />
   </ItemGroup>
 
 </Project>

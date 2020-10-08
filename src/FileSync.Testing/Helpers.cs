@@ -1,6 +1,4 @@
-﻿using FileSync.Library.Config;
-using FileSync.Library.Network;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -9,6 +7,7 @@ namespace FileSync.Testing
 {
     public class Helpers
     {
+        /*
         public static List<FileSyncConfig> GenerateServerConfig()
         {
             string workingDirectory = Directory.GetCurrentDirectory();
@@ -63,5 +62,6 @@ namespace FileSync.Testing
             result.Add(server2Config);
             return result;
         }
+        */
     }
 }

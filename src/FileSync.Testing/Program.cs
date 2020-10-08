@@ -1,5 +1,4 @@
-﻿using FileSync.Library.FileSystem;
-using System;
+﻿using System;
 using System.Threading;
 
 namespace FileSync.Testing
@@ -9,7 +8,7 @@ namespace FileSync.Testing
         static void RunNetworkTests()
         {
             NetworkTests tests = new NetworkTests();
-            tests.Run();
+            //tests.Run();
         }
 
         static void RunFileSystemTests()
@@ -20,11 +19,11 @@ namespace FileSync.Testing
 
         static void Main(string[] args)
         {
-            Watcher watcher = new Watcher("Z:/music");
-            watcher.ScanForFiles();
-            Console.WriteLine("Done testing.");
+            //Watcher watcher = new Watcher("Z:/music");
+            //watcher.ScanForFiles();
+            //Console.WriteLine("Done testing.");
             //RunNetworkTests();
-            //RunFileSystemTests();
+            RunFileSystemTests();
         }
     }
 }

@@ -1,6 +1,4 @@
 using FileSync.Library;
-using FileSync.Library.Config;
-using FileSync.Library.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,6 +10,7 @@ namespace FileSync.Testing
 {
     public class NetworkTests
     {
+        /*
         List<FileSyncManager> Managers { get; set; }
         List<FileSyncConfig> Configs { get; set; }
         ILogger Logger { get; set; }
@@ -242,5 +241,6 @@ namespace FileSync.Testing
 
             }
         }
+        */
     }
 }
