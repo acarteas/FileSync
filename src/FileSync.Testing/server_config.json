@@ -1,0 +1,12 @@
+{
+  "ListenPort": 13000,
+  "BindKeyToIpAddress": false,
+  "Shares": {
+    "temp": {
+      "AbsolutePath": "d:/temp",
+      "Clients": {
+        "ABC123": "127.0.0.1"
+      }
+    }
+  }
+}

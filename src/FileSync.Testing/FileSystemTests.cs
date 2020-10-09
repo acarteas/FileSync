@@ -53,7 +53,7 @@ namespace FileSync.Testing
 
             //force refresh the DB for this test
             FileSyncDb db = FileSyncDb.GetInstance(serverPath, true);
-            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
+            FileSyncFileManager watcher = new FileSyncFileManager(serverPath);
             await watcher.ScanForFiles();
 
             //verify correctness
@@ -81,7 +81,7 @@ namespace FileSync.Testing
             CreateFiles(serverPath, 10);
 
             //force refresh the DB for this test
-            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
+            FileSyncFileManager watcher = new FileSyncFileManager(serverPath);
             int result = await watcher.ScanForFiles(now);
             Assert.AreEqual(10, result, "FS Watcher did not find all 10 items");
         }
@@ -97,7 +97,7 @@ namespace FileSync.Testing
             int changeCounter = 0;
             int filesToChange = 10;
 
-            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
+            FileSyncFileManager watcher = new FileSyncFileManager(serverPath);
             List<FileInfo> changedFiles = new List<FileInfo>();
             watcher.FileChangeDetected += (object sender, FsFileSystemEventArgs args) =>
             {
@@ -130,7 +130,7 @@ namespace FileSync.Testing
             int filesToChange = 10;
             DateTime now = DateTime.Now;
 
-            FileSyncFileSystem watcher = new FileSyncFileSystem(serverPath);
+            FileSyncFileManager watcher = new FileSyncFileManager(serverPath);
             List<FsFileSystemEventArgs> changedFiles = new List<FsFileSystemEventArgs>();
             watcher.FileChangeDetected += (object sender, FsFileSystemEventArgs args) =>
             {

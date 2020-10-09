@@ -11,14 +11,14 @@ using System.Threading.Tasks;
 
 namespace FileSync.Library.FileSystem
 {
-    public class FileSyncFileSystem
+    public class FileSyncFileManager
     {
         private System.IO.FileSystemWatcher _watcher = null;
         private FileSyncDb _db;
         public event EventHandler<FsFileSystemEventArgs> FileChangeDetected = delegate { };
         public string PathToWatch { get; protected set; }
 
-        public FileSyncFileSystem(string pathToWatch = ".")
+        public FileSyncFileManager(string pathToWatch = ".")
         {
             PathToWatch = pathToWatch;
             _db = FileSyncDb.GetInstance(pathToWatch);

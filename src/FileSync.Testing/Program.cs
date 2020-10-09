@@ -8,7 +8,7 @@ namespace FileSync.Testing
         static void RunNetworkTests()
         {
             NetworkTests tests = new NetworkTests();
-            //tests.Run();
+            tests.Run();
         }
 
         static void RunFileSystemTests()
@@ -22,7 +22,7 @@ namespace FileSync.Testing
             //Watcher watcher = new Watcher("Z:/music");
             //watcher.ScanForFiles();
             //Console.WriteLine("Done testing.");
-            //RunNetworkTests();
+            RunNetworkTests();
             RunFileSystemTests();
         }
     }

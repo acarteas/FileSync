@@ -20,7 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FileSync.Library\FileSync.Library.csproj" />
+    <ProjectReference Include="..\FileSync.Library.FileSystem\FileSync.Library.FileSystem.csproj" />
+    <ProjectReference Include="..\FileSync.Library.Networking\FileSync.Library.Networking.csproj" />
+    <ProjectReference Include="..\FileSync.Library.Shared\FileSync.Library.Shared.csproj" />
   </ItemGroup>
 
 </Project>
