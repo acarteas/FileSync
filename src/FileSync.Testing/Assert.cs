@@ -10,8 +10,7 @@ namespace FileSync.Testing
         {
             if(item1.CompareTo(item2) != 0)
             {
-                message = String.Format(message, args);
-                throw new Exception(message);
+                throw new Exception(string.Format(message, args));
             }
         }
 

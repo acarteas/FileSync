@@ -4,12 +4,5 @@ using System.Text;
 
 namespace FileSync.Library.Networking.MessageHandlers
 {
-    public enum MessageType : byte
-    { 
-        Null,
-        Get,
-        Put,
-        List
-    }
-
+    public enum MessageResponse : byte { Error = 0, OK  }
 }

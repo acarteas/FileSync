@@ -23,10 +23,15 @@ namespace FileSync.Library.Networking.MessageHandlers
                 string relativeFilePath = Helpers.ReadString(reader);
                 string localFilePath = Config.GetFilePath(shareName, relativeFilePath);
 
-                //begin read
-                FileMetaData md = Helpers.GetMetaData(localFilePath);
-                writer.Write(md.ToBytes());
+                string directoryPath = Path.GetDirectoryName(localFilePath);
+                if(Directory.Exists(directoryPath) == false)
+                {
+                    Directory.CreateDirectory(directoryPath);
+                }
+
+                FileMetaData md = FileMetaData.FromReader(reader);
                 Helpers.WriteFile(localFilePath, md, reader);
+                Helpers.UpdateFileMetaData(localFilePath, md);
             }
             return true;
         }

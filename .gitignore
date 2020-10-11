@@ -349,3 +349,5 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 /src/FileSync.Library/fs.db
+/src/FileSync.Library.FileSystem/fsdb.db
+/src/FileSync.Library.Shared/fsdb.db
