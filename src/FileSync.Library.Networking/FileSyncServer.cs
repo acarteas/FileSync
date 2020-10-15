@@ -86,7 +86,17 @@ namespace FileSync.Library.Networking
                 {
 
                     //read key
-                    string key = Helpers.ReadString(reader);
+                    string key = "";
+                    try
+                    {
+                        key = Helpers.ReadString(reader, Config.MaxApiKeyLength);
+                    }
+                    catch(Exception ex)
+                    {
+                        //bad key, break connection
+                        Logger.Log("Server #{0} error: {1}", ServerId, ex.Message);
+                        throw new ValidationException("Authentication key provided is invalid");
+                    }
 
                     //validate
                     if (Config.IsValidKey(key, address) == true)

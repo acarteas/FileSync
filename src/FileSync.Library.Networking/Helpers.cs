@@ -72,5 +72,15 @@ namespace FileSync.Library.Networking
             int length = IPAddress.NetworkToHostOrder(reader.ReadInt32());
             return Encoding.UTF8.GetString(reader.ReadBytes(length));
         }
+
+        public static string ReadString(BinaryReader reader, int maxStringLength)
+        {
+            int length = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+            if(length > maxStringLength)
+            {
+                throw new Exception(string.Format("string length ({0}) exceeded. Max: {1}", length, maxStringLength));
+            }
+            return Encoding.UTF8.GetString(reader.ReadBytes(length));
+        }
     }
 }

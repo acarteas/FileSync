@@ -10,8 +10,9 @@ namespace FileSync.Library.Networking
         public int ListenPort { get; set; }
         public bool BindKeyToIpAddress { get; set; }
         public Dictionary<string, ServerShare> Shares { get; set; }
-        
-        
+        public int MaxApiKeyLength { get; set; }
+
+
         public ServerConfig()
         {
             BindKeyToIpAddress = false;

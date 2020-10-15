@@ -1,6 +1,7 @@
 {
   "ListenPort": 13000,
   "BindKeyToIpAddress": false,
+  "MaxApiKeyLength":  32,
   "Shares": {
     "temp": {
       "AbsolutePath": "d:/temp",
